@@ -3,7 +3,7 @@
  *
  * The reducer alone — no store, no fetch, no DOM — which is what lets the sequences that are awkward
  * in a live window be written down here: an answer landing after its row was folded, a half-second
- * refresh arriving on top of a page somebody read with "show more", a row deleted out from under a
+ * refresh arriving on top of a page somebody scrolled a box open to, a row deleted out from under a
  * subtree that was opened from it. Two of them are the reasons this panel exists in the shape it
  * does, so they are asserted rather than described: a record reached two ways is two boxes, and a
  * refresh appends instead of re-sorting.
@@ -30,6 +30,7 @@ import {
   activeFirst,
   beginRoot,
   boxPath,
+  cardKey,
   createGraphState,
   expand,
   expandedPaths,
@@ -137,6 +138,56 @@ describe("the path grammar", () => {
     expect(isBeneath(RECIPES, RECIPES)).toBe(true);
     expect(isBeneath(rootPath("script"), RECIPES)).toBe(false);
     expect(isBeneath(rowPath(rootPath("script"), card("script", "s1")), RECIPES)).toBe(false);
+  });
+});
+
+/**
+ * The other key in this module, and why one is not enough.
+ *
+ * A PATH SAYS WHERE A ROW IS, `cardKey` SAYS WHAT IT DRAWS. The path is the identity — two routes to
+ * one record are two rows, which the block below this one asserts at length — and that is exactly why
+ * something else has to be able to say those two rows are the same record after all. Three readers
+ * depend on it: the merge diffs a box by it, the panel keys a row with it, and `useTwinRows` marks
+ * every row carrying it while the pointer is on one of them.
+ */
+describe("cardKey is what says two rows are one record", () => {
+  test("the table and the id, and the table is not decoration", () => {
+    expect(cardKey(RC)).toBe("recipe:ab12");
+    // An id is unique WITHIN its table. Two tables may hand out the same one, and a key that dropped
+    // the table would make two unrelated rows each other's twin.
+    expect(cardKey(card("report", "ab12"))).not.toBe(cardKey(RC));
+  });
+
+  test("two reads of one record agree, however far apart the rows are", () => {
+    // The shape the marking exists for. A `series_preparation` is drawn under the script that ran it
+    // and under the assessment it was prepared for, from two separate reads — so the two rows hold two
+    // card objects, in boxes that may be a screen apart, and what says they are one record is neither
+    // the path nor the identity of the card.
+    const fromScript = card("series_preparation", "sp1", "orats-vol-surface-daily");
+    // The same row as another read saw it: a label the server composed differently is still that row.
+    const fromAssessment = { ...fromScript, label: "orats-vol-surface-daily 2026-08-01" };
+    const viaScript = rowPath(
+      boxPath(rowPath(rootPath("script"), card("script", "sc1")), "series_preparation"),
+      fromScript,
+    );
+    const assessmentRow = rowPath(
+      boxPath(rowPath(rootPath("thesis"), card("thesis", "t1")), "thesis_assessment"),
+      card("thesis_assessment", "ta1"),
+    );
+    const viaAssessment = rowPath(boxPath(assessmentRow, "series_preparation"), fromAssessment);
+
+    expect(viaScript).not.toBe(viaAssessment);
+    expect(cardKey(fromScript)).toBe(cardKey(fromAssessment));
+  });
+
+  test("the name is not what matches, because a name is unique in its table and no wider", () => {
+    // A `script_invocation` and the `series_preparation` that ran the same program with the same
+    // argument are drawn identically, and they are not the same row. Matching on what a row SHOWS
+    // would mark each as the other's twin — which is why the key is the pair and not the label.
+    const run = { ...card("script_invocation", "si1"), name: "orats-vol-surface-daily-mnqt" };
+    const prep = { ...card("series_preparation", "sp1"), name: "orats-vol-surface-daily-mnqt" };
+    expect(run.name).toBe(prep.name);
+    expect(cardKey(run)).not.toBe(cardKey(prep));
   });
 });
 
@@ -610,8 +661,8 @@ describe("a live refresh must not move the row under the cursor", () => {
   });
 
   test("a truncated page is evidence about what exists, not about what does not", () => {
-    // The rows below the page's edge were paged in with "show more". Deleting them because the
-    // newest page does not mention them would make paging undo itself twice a second.
+    // The rows below the page's edge were read by scrolling the box to the end of its list. Deleting
+    // them because the newest page does not mention them would make paging undo itself twice a second.
     let state = withRoot([a, b], true);
     state = extendRoot(state, "recipe", { records: [c], hasMore: false });
     expect(rootIds(state, "recipe")).toEqual(["a", "b", "c"]);
@@ -725,7 +776,7 @@ describe("a live refresh must not move the row under the cursor", () => {
 
 describe("paging within a box", () => {
   // A recipe's reports, which is the box that actually grows without bound: every generation
-  // procedure that finishes publishes one, and "show more" is a route for exactly this.
+  // procedure that finishes publishes one, and scrolling a box open is a route for exactly this.
   const r1 = card("report", "417", "TSMC — Q3 capacity");
   const r2 = card("report", "418", "TSMC — pricing power");
 
@@ -735,7 +786,7 @@ describe("paging within a box", () => {
     ]);
   }
 
-  test("show more appends, and the counts come from the newer answer", () => {
+  test("a page appends, and the counts come from the newer answer", () => {
     const state = extendGroup(
       opened(),
       RC_PATH,

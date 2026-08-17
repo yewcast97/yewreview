@@ -20,6 +20,15 @@
  * row count, and what scrolls inside it is content the arithmetic already decided not to make room
  * for.
  *
+ * ONE SCROLL OFFSET IS READ, AND ALL IT DECIDES IS WHAT TO ASK FOR NEXT. Reaching the end of a
+ * scrolling list is how a box's next page is requested. There is no "show more" button: the scrollbar
+ * already says the list holds more than the box draws, and a button under it said the same thing a
+ * second time — so the rows below the cap now arrive as the reader scrolls to them, until the box
+ * holds every row there is. The page lands in the STORE, the box does not change height when it does,
+ * and the reader goes on scrolling a list of the height the packing solved. `atListEnd` in
+ * `lib/graphLayout.ts` owns the arithmetic; no coordinate is computed from a scroll position anywhere,
+ * and `rowTop` refuses to follow one on purpose.
+ *
  * The CANVAS's own rectangle IS read, in three places and for three reasons: a wheel event has to
  * know where in the canvas the pointer is, a fit has to know how big the viewport is, and
  * `useCanvasSize` watches it so the packing's margins and gaps can be fractions of the panel rather
@@ -42,6 +51,20 @@
  * legend nobody reads. A LINK TAKES THE FAMILY OF THE BOX IT ARRIVES AT, which is what makes the link,
  * the input dot it lands on and that box's strip agree — and a row with three outgoing links gets
  * three distinguishable wires.
+ *
+ * THE SAME RECORD IN TWO BOXES IS MARKED IN BOTH WHEN THE POINTER IS ON EITHER. A record reached by
+ * two routes is drawn as two rows — that is the whole reason a path rather than a record is the
+ * identity in `state/graph.ts` — and a `series_preparation` sits under its script and under the
+ * assessment it was prepared for at once, with nothing on screen saying the two rows are one row. So
+ * `useTwinRows` writes a `data-twin` attribute onto every row carrying the same `data-card`, which is
+ * the record's own `table:id`.
+ *
+ * IT IS AN ATTRIBUTE RATHER THAN STATE, for the reason `NoteBoard` gives for its pairs: a hovered row
+ * mirrored into the store would re-render every box on the canvas on each crossing of a twelve-row
+ * list, and a hovered row mirrored into the GRAPH slice would re-run `layoutGraph` with it. Where that
+ * precedent stops is CSS — `:has()` can ask whether a row holds the pointer, but not whether a row in
+ * some other box names the same record — so the marking is done by hand, on the one attribute React
+ * does not write and therefore cannot clobber on the next refresh.
  *
  * ONE CLICK SELECTS AND EXPANDS, TWO OPEN THE RECORD, and the row is a drag source throughout. Three
  * gestures on one element sounds like one too many, and the resolution is what makes it work:
@@ -97,19 +120,20 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactElement,
+  type UIEvent,
 } from "react";
 
 import type { RecordCard, RecordGroup } from "../lib/api.ts";
 import { familyOf } from "../lib/family.ts";
 import type { GraphLayout, LayoutBox } from "../lib/graphLayout.ts";
 import {
-  FOOTER_H,
   MAX_ROWS,
   NODE_W,
   NOTE_H,
   ROW_H,
   SCROLLBAR_W,
   TITLE_H,
+  atListEnd,
   bezierPath,
   layoutGraph,
   metricsFor,
@@ -122,6 +146,7 @@ import { expands } from "../lib/records.ts";
 import { formatAbsolute } from "../lib/time.ts";
 import type { Expansion, GraphState, NodeOffset, NodePath, RootTable } from "../state/graph.ts";
 import {
+  cardKey,
   isExpanded,
   isReading,
   parentPath,
@@ -189,6 +214,7 @@ export function GraphPanel(): ReactElement {
   const layout = useMemo<GraphLayout>(() => layoutGraph(graph, metrics), [graph, metrics]);
 
   useWheelZoom(canvas);
+  useTwinRows(canvas);
   const pan = usePan();
 
   /**
@@ -472,6 +498,68 @@ function useWheelZoom(canvas: { current: HTMLDivElement | null }): void {
 }
 
 /**
+ * The row under the pointer, and every other row that is the same record.
+ *
+ * WHY THERE IS ANYTHING TO MARK. A record is drawn once per route to it, so the same
+ * `series_preparation` appears in the box under its script and in the box under the assessment it was
+ * prepared for, and the same `script_invocation` appears under its script and under the report that
+ * records running it. Both rows say the same name, in two boxes that may be a screen apart, and
+ * nothing else on the canvas says they are one row: the graph's whole claim is about which records
+ * point at which, and a reader following that has to be able to see the record arrive twice.
+ *
+ * MATCHED ON `table:id` AND NEVER ON THE NAME. `cardKey` is the same key the merge in `state/graph.ts`
+ * diffs a box by, and the reason it carries the table is the reason a mention carries one: a name is
+ * unique within its table and nowhere wider, so a `script_invocation` and the `series_preparation` that
+ * ran the same program with the same argument are drawn with the same label and are not the same row.
+ *
+ * ONE DELEGATED LISTENER, AND NO REACT STATE. `pointerover` bubbles where `mouseenter` does not, so one
+ * listener on the canvas covers every row in every box, including the boxes that were opened after it
+ * was attached. The mark itself is written onto the DOM — see this file's header on why neither the
+ * store nor the stylesheet can hold it — and `held` is what keeps that cheap: the pointer crosses a
+ * row's label, its magnifier and its arrow on the way across, and only a crossing that changes which
+ * record is under the pointer touches an attribute.
+ *
+ * WHAT IT DOES NOT DO IS FOLLOW THE ARCHIVE. A row that arrives from a refresh while the pointer is
+ * already resting on its twin is drawn unmarked until the pointer moves again. The alternative is
+ * re-marking on every poll, which is the per-poll work over every row on the canvas that this whole
+ * panel is arranged to avoid, to correct a mark for a row the reader has not looked at yet.
+ */
+function useTwinRows(canvas: { current: HTMLDivElement | null }): void {
+  useEffect(() => {
+    const element = canvas.current;
+    if (element === null) return;
+    let held: string | null = null;
+    // Attributes rather than `dataset`, which is the one spelling that names what the stylesheet
+    // selects on. Both halves are written here: a row that is no longer a twin has to lose the mark in
+    // the same pass that gives it to the rows that are.
+    const mark = (key: string | null): void => {
+      if (key === held) return;
+      held = key;
+      for (const row of element.querySelectorAll(".graph__row")) {
+        if (key !== null && row.getAttribute("data-card") === key) row.setAttribute("data-twin", "");
+        else row.removeAttribute("data-twin");
+      }
+    };
+    // Typed as the base `Event` because this file imports React's `PointerEvent` for its JSX handlers
+    // and these are the platform's own. `target` is all that is read either way.
+    const onOver = (event: Event): void => {
+      const target = event.target;
+      const row = target instanceof Element ? target.closest(".graph__row") : null;
+      mark(row === null ? null : row.getAttribute("data-card"));
+    };
+    // Leaving the board clears it. `pointerover` alone cannot: the pointer's last crossing inside the
+    // canvas is the one onto the row, and there is no later one to say it has gone.
+    const onLeave = (): void => mark(null);
+    element.addEventListener("pointerover", onOver);
+    element.addEventListener("pointerleave", onLeave);
+    return () => {
+      element.removeEventListener("pointerover", onOver);
+      element.removeEventListener("pointerleave", onLeave);
+    };
+  }, [canvas]);
+}
+
+/**
  * Dragging the canvas itself.
  *
  * The hit test is the whole design: a pointerdown that landed inside a `.graph__node` belongs to
@@ -536,8 +624,8 @@ function usePan(): {
 /**
  * The layout's constants, handed to the stylesheet, and the reader's transform.
  *
- * The constants are published rather than duplicated: `graph.css` sizes a title bar, a row and a
- * footer, and every one of those numbers is also an arithmetic term in `layoutGraph`. Two copies
+ * The constants are published rather than duplicated: `graph.css` sizes a title bar, a row and a line
+ * of prose, and every one of those numbers is also an arithmetic term in `layoutGraph`. Two copies
  * would agree until one of them was tuned, and the failure — boxes whose drawn contents no longer
  * end where the packing said they do — has nothing to notice it.
  *
@@ -554,7 +642,6 @@ function surfaceStyle(layout: GraphLayout, view: ViewTransform): CSSProperties {
     "--graph-node-w": `${NODE_W}px`,
     "--graph-title-h": `${TITLE_H}px`,
     "--graph-row-h": `${ROW_H}px`,
-    "--graph-footer-h": `${FOOTER_H}px`,
     "--graph-note-h": `${NOTE_H}px`,
     // The gutter a scrolling box's rows give up, which the packing has already taken out of every
     // link leaving one of them. It is published for the same reason the four above it are: the
@@ -628,6 +715,9 @@ type GraphNodeProps = {
  * be a socket for a wire that cannot exist.
  */
 function GraphNode({ box, graph }: GraphNodeProps): ReactElement {
+  // Whether this box has a page in flight. A scroll to the end of a list fires an event per frame of
+  // the gesture that got there, and each one of them would otherwise ask for the same page again.
+  const paging = useRef(false);
   const held = expansionFor(graph, box);
   const group = groupFor(held, box);
   const root = rootTableOf(box.path);
@@ -715,6 +805,45 @@ function GraphNode({ box, graph }: GraphNodeProps): ReactElement {
    */
   const shown = ordersByStanding(root) ? activeFirst(records) : records;
 
+  /**
+   * Reaching the end of the list IS the request for the next page.
+   *
+   * There is no button to press: the scrollbar on a capped box already says it holds more than it
+   * draws, and the reader who has scrolled to the bottom of it has asked the only question a pager
+   * could have asked them. Repeating the gesture reads the page after that, so a box is emptied of its
+   * archive by scrolling it rather than by pressing a strip at its foot twelve times.
+   *
+   * THE PAGE LANDS IN THE STORE, which is the same rule the button obeyed and the reason it must:
+   * the 500ms refresh replaces this slice and remounts these rows, so rows held out here would vanish
+   * under the pointer of the person who had just scrolled to them. The merge is written to keep them
+   * (`state/graph.ts`, "A TRUNCATED PAGE IS EVIDENCE").
+   *
+   * IT ASKS ONCE AND THEN WAITS TO BE ASKED AGAIN. The guard covers the flight; what covers the moment
+   * after it is the arithmetic — a page is `DEFAULT_GROUP` rows and every one of them is `ROW_H` tall,
+   * so the list grows well past the slack and the reader is no longer at its end. A box that answered
+   * with nothing new stays where it is and asks again on the next scroll, because a wheel at the end of
+   * a contained list moves nothing and fires nothing.
+   *
+   * THE KEYBOARD READS THE PAGES TOO, AND PAYS FOR IT. Tab moves focus into rows the box does not
+   * draw, the browser scrolls a focused element into view, and that is a scroll event on this element
+   * at the end of the list — so a reader with no pointer reaches the rest of the table by the same
+   * gesture, which is more than the strip at the foot of the box ever offered them. What it costs is
+   * the way OUT: `Show more` was the last tab stop in a box and Tab moved past it to the next node,
+   * where now Tab through a box with pages left walks the pages instead. Shift+Tab still leaves
+   * backwards, and the walk does end when the table does. The alternative is suppressing the trigger
+   * for focus-driven scrolls, which would take the keyboard's only route to the rest of the rows away
+   * to save it from using that route — so the cost is written down here rather than paid.
+   */
+  const onScroll = (event: UIEvent<HTMLDivElement>): void => {
+    if (!hasMore || paging.current) return;
+    const list = event.currentTarget;
+    if (!atListEnd(list.scrollTop, list.scrollHeight, list.clientHeight)) return;
+    paging.current = true;
+    void showMoreOf(box).finally(() => {
+      paging.current = false;
+    });
+  };
+
   return (
     <div className={nodeClass} style={style} data-family={family} data-chalk={seed}>
       {frame}
@@ -745,11 +874,19 @@ function GraphNode({ box, graph }: GraphNodeProps): ReactElement {
          * wheel event on the board to zoom with it, so without a way to recognise a list that
          * scrolls, a box past the cap would be one the reader could see the top of and never reach
          * the bottom of.
+         *
+         * `onScroll` IS ON EVERY LIST AND ONLY ONE KIND OF LIST CAN FIRE IT. A list short enough to
+         * draw whole never scrolls, so the handler is attached without a condition and the condition
+         * lives where it is decided — in `onScroll`, which asks the state whether there is a page to
+         * read before it asks the element where it has been scrolled to.
          */
-        <div className={shown.length > MAX_ROWS ? "graph__rows graph__rows--scrolls" : "graph__rows"}>
+        <div
+          className={shown.length > MAX_ROWS ? "graph__rows graph__rows--scrolls" : "graph__rows"}
+          onScroll={onScroll}
+        >
           {shown.map((card) => (
             <GraphRow
-              key={`${card.table}:${card.id}`}
+              key={cardKey(card)}
               box={box.path}
               card={card}
               graph={graph}
@@ -758,18 +895,6 @@ function GraphNode({ box, graph }: GraphNodeProps): ReactElement {
           ))}
         </div>
       )}
-      {hasMore ? (
-        <button
-          type="button"
-          className="btn btn--quiet graph__more"
-          // The page lands in the STORE, not here. A refresh half a second later replaces the slice
-          // and remounts these rows, and extras held in component state would vanish under the
-          // pointer of the person who had just asked for them.
-          onClick={() => void showMoreOf(box)}
-        >
-          Show more
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -1119,7 +1244,15 @@ function GraphRow({ box, card, graph, via }: GraphRowProps): ReactElement {
     .join(" ");
 
   return (
-    <div className={rowClass} {...drag}>
+    /*
+     * `data-card` IS THE RECORD, AND IT IS THE ONLY THING ON THIS ROW THAT IS NOT ABOUT THIS ROW.
+     * Every class above says something about the row in its box — open, selected, put down — and this
+     * says which record the row draws, so `useTwinRows` can mark the OTHER rows drawing the same one.
+     * It is the merge's own key rather than the name: a name is unique within its table and no wider.
+     * Nothing reads it back as data — the card itself is in the props — so it is a handle for the
+     * pointer and not a second copy of the row's contents.
+     */
+    <div className={rowClass} data-card={cardKey(card)} {...drag}>
       <button
         type="button"
         className="graph__open"

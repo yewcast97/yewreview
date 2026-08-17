@@ -16,14 +16,14 @@
  * because that is the axis each gap is measured along. The constants below are the FLOORS of
  * those fractions: a narrow panel gets a tight packing rather than something tighter still.
  *
- * HEIGHTS ARE CLOSED-FORM, NEVER MEASURED. A box is a title bar, some rows and maybe a footer, and every one of those is a fixed number of pixels, so its height is arithmetic:
- * `TITLE_H + min(rows, MAX_ROWS) * ROW_H + (hasMore ? FOOTER_H : 0)`. HOW MANY ROWS is
- * part of the same arithmetic and not a separate question — a page the reader has not extended
- * draws only what came back,
- * draws exactly one — which is why `boxesFor` decides what is drawn rather than the panel. The CAP
- * is part of it too and changes nothing about the method: past `MAX_ROWS` the box is a fixed height
- * and the list inside it scrolls, which is still a number this module decides and the stylesheet
- * obeys rather than one it reads back.
+ * HEIGHTS ARE CLOSED-FORM, NEVER MEASURED. A box is a title bar over its rows, and both are a fixed
+ * number of pixels, so its height is arithmetic: `TITLE_H + min(rows, MAX_ROWS) * ROW_H`. HOW MANY
+ * ROWS is part of the same arithmetic and not a separate question — a box draws the rows the state
+ * holds for it, which is why `boxesFor` decides what is drawn rather than the panel. The CAP changes
+ * nothing about the method: past `MAX_ROWS` the box is a fixed height and the list inside it
+ * scrolls, which is still a number this module decides and the stylesheet obeys rather than one it
+ * reads back.
+ *
  * The alternative is measuring the rendered
  * boxes and packing from what comes back, and that fails twice over. It relays out UNDER THE CURSOR:
  * the first paint puts the boxes somewhere, the measurement moves them, and a click aimed at a row
@@ -31,6 +31,11 @@
  * in `state/graph.ts`. And it cannot be tested without a DOM, which means the packing rules would be
  * verified by looking at them. Rows are therefore not allowed to wrap; the panel's stylesheet holds
  * up its end with a fixed row height and an ellipsis, and that is the contract between the two.
+ *
+ * ROWS STILL UNREAD COST NO PIXELS. A box with another page to read used to be `FOOTER_H` taller for
+ * a "show more" button; the next page is asked for by scrolling to the end of the list now
+ * (`atListEnd`), so `hasMore` is not an argument to `boxHeight` and a box's height is a function of
+ * its row count alone.
  *
  * X IS A FUNCTION OF DEPTH AND THE METRICS ALONE. Column d sits at
  * `padX + d * (NODE_W + gapX)`, so the graph reads as generations left to right no matter what has
@@ -100,8 +105,9 @@ export const ROW_H = 40;
  * reading at, and it is enough rows that the cap is reached by an archive rather than by ordinary
  * use.
  *
- * IT DOES NOT CHANGE WHAT THE BOX HOLDS. The count on the title bar is still the group's own total
- * and "show more" still reads the next page — what is capped is the DRAWING. Nothing about this is
+ * IT DOES NOT CHANGE WHAT THE BOX HOLDS. The count on the title bar is still the group's own total,
+ * and scrolling to the end of the list still reads the next page — what is capped is the DRAWING,
+ * which is also what makes the scroll the honest gesture for the rest. Nothing about this is
  * measured: the box is `min(rows, MAX_ROWS)` tall by the same arithmetic it was always computed by,
  * and the stylesheet's end of the bargain is that the list inside it scrolls rather than growing.
  */
@@ -121,8 +127,34 @@ export const MAX_ROWS = 12;
  * pixel or two of disagreement there moves a link's start, nothing else.
  */
 export const SCROLLBAR_W = 10;
-/** The "show more" strip at the foot of a box that has not read all of its rows. */
-export const FOOTER_H = 26;
+/**
+ * How close to the end of a scrolling list counts as having reached it.
+ *
+ * Reaching the end is what asks for the next page — there is no "show more" button, and the box does
+ * not grow when the page lands, so a long box is read by scrolling it and the rows below the cap
+ * arrive as they are scrolled to. Eight pixels rather than zero because a scroll offset is fractional
+ * on a trackpad while `clientHeight` is a whole number, and a comparison against the exact end is one
+ * that succeeds on one machine and not the next. Well under `ROW_H`, so what it means is that the last
+ * row drawn is fully in view rather than that the reader is nearly there.
+ */
+export const END_SLACK = 8;
+
+/**
+ * Whether a scrolling list has been scrolled to its end.
+ *
+ * THREE NUMBERS THE PANEL READ, and that is the same bargain the metrics make: the panel measures its
+ * own element, this decides what the measurement means, and the decision is testable without a DOM. A
+ * scroll offset is not a coordinate — no box's height or position is computed from one, and `rowTop`
+ * refuses to follow the scroll for exactly that reason — so reading one costs this module nothing it
+ * claims not to do.
+ *
+ * A list with nothing to scroll answers true, since its end is where it starts. Nothing acts on that:
+ * a list that does not overflow fires no scroll event, and a box with a page still to read always
+ * overflows because the page a read asks for (`DEFAULT_GROUP`) is larger than `MAX_ROWS`.
+ */
+export function atListEnd(scrollTop: number, scrollHeight: number, clientHeight: number): boolean {
+  return scrollHeight - scrollTop - clientHeight <= END_SLACK;
+}
 /** One line of prose where the rows would be: "nothing refers to this", or "reading…". */
 export const NOTE_H = 26;
 /** A sentence and a retry button. Taller than a note because a refusal that cannot be acted on is
@@ -229,10 +261,11 @@ const NO_DRAG: NodeOffset = { dx: 0, dy: 0 };
 
 /** The closed form. An empty box is a line of prose rather than a title bar with nothing under it,
  * and a box with more rows than `MAX_ROWS` is exactly as tall as `MAX_ROWS` of them — the rest are
- * reached by scrolling the list rather than by making the box taller. */
-function boxHeight(rows: number, hasMore: boolean): number {
+ * reached by scrolling the list rather than by making the box taller. A box with a page still unread
+ * is not taller either: scrolling to the end of the list is what reads it. */
+function boxHeight(rows: number): number {
   const drawn = rows === 0 ? NOTE_H : Math.min(rows, MAX_ROWS) * ROW_H;
-  return TITLE_H + drawn + (hasMore ? FOOTER_H : 0);
+  return TITLE_H + drawn;
 }
 
 /**
@@ -248,6 +281,9 @@ function boxHeight(rows: number, hasMore: boolean): number {
  * `place`, every box packed beside it — at the mercy of a wheel event, which is exactly the
  * re-packing under the reader's cursor this file exists to refuse. So a link leaves the row's
  * unscrolled place, and a reader who scrolls a long box scrolls the rows past their wires.
+ *
+ * The panel does read one scroll offset, and `atListEnd` is the whole of what it decides: whether to
+ * ask the store for another page. No coordinate here is computed from it.
  */
 function rowTop(boxY: number, index: number): number {
   return boxY + TITLE_H + Math.min(index, MAX_ROWS - 1) * ROW_H;
@@ -341,7 +377,7 @@ export function layoutGraph(state: GraphState, metrics: LayoutMetrics): GraphLay
         kind: refused ? "refusal" : "root",
         table,
         title: table,
-        h: refused ? REFUSAL_H : boxHeight(records.length, root.box?.hasMore ?? false),
+        h: refused ? REFUSAL_H : boxHeight(records.length),
         // TWO ROOTS ARE ORDERED AND THE OTHER TWO ARE NOT. `recipe` and `script` draw their active
         // rows before their retired ones — see `activeFirst`, which owns the exception to this
         // graph's no-re-sorting law, and `ordersByStanding`, which owns which boxes it applies to —
@@ -450,7 +486,7 @@ function boxesFor(
       kind: "group" as const,
       table: group.table,
       title: group.table,
-      h: boxHeight(group.records.length, group.hasMore),
+      h: boxHeight(group.records.length),
       rows: group.records,
       source,
       order,

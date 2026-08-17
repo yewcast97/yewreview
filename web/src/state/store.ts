@@ -1426,10 +1426,10 @@ export async function logsShowMore(category: LogCategory): Promise<void> {
  * boxes. That grammar and the merge rules live in `state/graph.ts`; this file only does the fetching
  * and hands the answers to it.
  *
- * EVERY PAGE LANDS IN THE STORE, never in a component. A "show more" held in component state would
- * be discarded by the next 500ms live refresh — the store replaces the slice, the component remounts
- * its rows, and the box shrinks under the cursor of somebody who has just made it taller. So
- * `graphShowMore` writes through `extendGroup`, and the merge is written to keep those extra rows.
+ * EVERY PAGE LANDS IN THE STORE, never in a component. A page held in component state would be
+ * discarded by the next 500ms live refresh — the store replaces the slice, the component remounts its
+ * rows, and the list shrinks back under the reader who has just scrolled it open. So `graphShowMore`
+ * writes through `extendGroup`, and the merge is written to keep those extra rows.
  */
 
 /** Replace the slice, and only when it actually moved. Every function in `state/graph.ts` returns
@@ -1599,7 +1599,7 @@ export async function graphShowMore(rowPath: NodePath, table: RecordTable): Prom
 }
 
 /** One more page of one root box. Same rule, and it takes the table because column zero is four
- * boxes: the "show more" that was pressed belongs to exactly one of them. */
+ * boxes: the list that was scrolled to its end belongs to exactly one of them. */
 export async function graphShowMoreRoots(table: RootTable): Promise<void> {
   const box = rootOf(state.graph, table).box;
   const last = box?.records[box.records.length - 1];

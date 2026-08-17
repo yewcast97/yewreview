@@ -60,9 +60,9 @@
  *
  * A TRUNCATED PAGE IS EVIDENCE ABOUT WHAT EXISTS, NOT ABOUT WHAT DOES NOT. The refresh asks for
  * `shownLimit` rows, so a page that comes back saying `hasMore` is a window onto the newest of them
- * and says nothing about the rows below its edge. Deleting the rows a reader paged in with "show
- * more" because the first page does not mention them would make paging undo itself every half
- * second. So absence removes a row only from a page that claims to be complete.
+ * and says nothing about the rows below its edge. Deleting the rows a reader scrolled a box open to,
+ * because the newest page does not mention them, would make paging undo itself every half second. So
+ * absence removes a row only from a page that claims to be complete.
  */
 
 import type { RecordCard, RecordGroup, RecordTable } from "../lib/records.ts";
@@ -447,8 +447,8 @@ export function extendGroup(
   const at = held.groups.findIndex((group) => group.table === table);
   if (at === -1) return state;
   const group = held.groups[at]!;
-  const known = new Set(group.records.map(segmentFor));
-  const added = more.records.filter((record) => !known.has(segmentFor(record)));
+  const known = new Set(group.records.map(cardKey));
+  const added = more.records.filter((record) => !known.has(cardKey(record)));
   if (added.length === 0 && group.hasMore === more.hasMore && group.total === more.total) return state;
   const groups = [...held.groups];
   groups[at] = {
@@ -468,8 +468,8 @@ export function extendRoot(
 ): GraphState {
   const held = rootOf(state, table);
   if (held.box === null) return landRoot(state, table, more);
-  const known = new Set(held.box.records.map(segmentFor));
-  const added = more.records.filter((record) => !known.has(segmentFor(record)));
+  const known = new Set(held.box.records.map(cardKey));
+  const added = more.records.filter((record) => !known.has(cardKey(record)));
   if (added.length === 0 && held.box.hasMore === more.hasMore) return state;
   return withRoot(state, table, {
     ...held,
@@ -605,9 +605,18 @@ export function activeFirst(records: readonly RecordCard[]): readonly RecordCard
 
 // -- the merge ------------------------------------------------------------------------------------
 
-/** What a card is matched on. The table is part of it because a box may one day hold more than one:
- * an id is unique within a table and nowhere else. */
-function segmentFor(card: RecordCard): string {
+/**
+ * What a card is matched on. The table is part of it because a box may one day hold more than one:
+ * an id is unique within a table and nowhere else.
+ *
+ * EXPORTED, because the panel matches on it too. This is what the merge diffs a box by, what React
+ * keys a row with, and what a row carries as `data-card` so the same record can be marked in every
+ * box that draws it — three readers of one rule, where a copy spelled out at any of them would be a
+ * second answer to "are these two rows the same record". It is deliberately NOT a path: `rowPath`
+ * escapes the id because a path is read by segment, and this is only ever compared against another
+ * key of the same kind.
+ */
+export function cardKey(card: RecordCard): string {
   return `${card.table}:${card.id}`;
 }
 
@@ -635,12 +644,12 @@ function mergeRecords(
   truncated: boolean,
 ): RecordCard[] {
   const fresh = new Map<string, RecordCard>();
-  for (const record of incoming) fresh.set(segmentFor(record), record);
+  for (const record of incoming) fresh.set(cardKey(record), record);
 
   const kept: RecordCard[] = [];
   let changed = false;
   for (const record of held) {
-    const updated = fresh.get(segmentFor(record));
+    const updated = fresh.get(cardKey(record));
     if (updated === undefined) {
       // Absent from a page that carries everything means deleted. Absent from a truncated page means
       // only that it is below the page's edge — see this file's header.
@@ -652,9 +661,9 @@ function mergeRecords(
     kept.push(updated);
   }
 
-  const known = new Set(kept.map(segmentFor));
+  const known = new Set(kept.map(cardKey));
   for (const record of incoming) {
-    if (known.has(segmentFor(record))) continue;
+    if (known.has(cardKey(record))) continue;
     // At the bottom, never in the server's order: a new record must not push the row under the
     // cursor down the box.
     kept.push(record);

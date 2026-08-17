@@ -22,7 +22,9 @@
  * A BOX PAST `MAX_ROWS` IS THE ONE PLACE A BOX HOLDS MORE THAN IT DRAWS, and it is still closed
  * form: the height stops at the cap and the rows inside scroll. Its own block below asserts what
  * that does to the two things a height feeds — the boxes packed under it, and the links leaving its
- * rows.
+ * rows — and that a page still unread adds nothing to either, since the rows below the cap are
+ * scrolled to rather than paged in from a strip at the foot of the box. `atListEnd`, which is what
+ * that scroll is read with, has a block of its own.
  *
  * THE PACKING RULES ARE STATED IN `DEFAULT_METRICS` and the METRICS ARE TESTED SEPARATELY, at the
  * foot of this file. Splitting them that way is the point of `metricsFor` being its own function:
@@ -33,12 +35,13 @@
 import { describe, expect, test } from "bun:test";
 
 import type { RecordCard, RecordGroup, RecordTable } from "../web/src/lib/records.ts";
+import { DEFAULT_GROUP } from "../web/src/lib/records.ts";
 import type { GraphLayout, LayoutBox } from "../web/src/lib/graphLayout.ts";
 import {
   BOX_GAP,
   COL_GAP,
   DEFAULT_METRICS,
-  FOOTER_H,
+  END_SLACK,
   MAX_ROWS,
   NODE_W,
   NOTE_H,
@@ -47,6 +50,7 @@ import {
   ROW_H,
   SCROLLBAR_W,
   TITLE_H,
+  atListEnd,
   bezierPath,
   layoutGraph as packGraph,
   metricsFor,
@@ -168,8 +172,9 @@ const RECIPES_H = TITLE_H + 2 * ROW_H;
 /** An empty root box is a title bar over one line of prose, and there are three of those below the
  * recipe box in every fixture here. */
 const EMPTY_ROOT_H = TITLE_H + NOTE_H;
-// Three rows and a "show more" strip.
-const A_REPORTS_H = TITLE_H + 3 * ROW_H + FOOTER_H;
+/** Three rows, and NOTHING for the page still unread: the rows below the cap are scrolled to rather
+ * than paged in from a strip at the foot of the box, so `hasMore` costs a box no height. */
+const A_REPORTS_H = TITLE_H + 3 * ROW_H;
 const B_REPORTS_H = TITLE_H + ROW_H;
 
 describe("the layout is a function of the state and nothing else", () => {
@@ -468,7 +473,7 @@ describe("boxes pack down a column, beside the row they came from", () => {
     expect(boxAt(after, A_REPORTS)).toEqual(boxAt(before, A_REPORTS));
   });
 
-  test("a box is a title bar, its rows and maybe a pager, and that is the whole closed form", () => {
+  test("a box is a title bar and its rows, and that is the whole closed form", () => {
     // The shape EVERY box in this graph has. There is no second one — the fold that a playbook box
     // used to draw was the only exception and it left with the versions — so a reader can read a
     // height off a row count anywhere on the canvas.
@@ -483,9 +488,11 @@ describe("boxes pack down a column, beside the row they came from", () => {
       title: "report",
       x: PAD + NODE_W + COL_GAP,
       y: PAD + TITLE_H,
-      h: TITLE_H + 3 * ROW_H + FOOTER_H,
+      h: TITLE_H + 3 * ROW_H,
     });
-    // And with everything read, the pager's pixels are not spent.
+    // A PAGE STILL UNREAD IS NOT A ROW OF HEIGHT. There was a "show more" strip here once and the
+    // arithmetic budgeted `FOOTER_H` for it; the next page is read by scrolling the list to its end
+    // now, so the two boxes are the same height and `hasMore` is not an argument to `boxHeight`.
     const whole = land(expand(state, A_ROW, A), A_ROW, [group("report", cards("report", 3))]);
     expect(boxAt(layoutGraph(whole), A_REPORTS).h).toBe(TITLE_H + 3 * ROW_H);
   });
@@ -630,12 +637,22 @@ describe("a box past MAX_ROWS is capped and scrolls", () => {
     expect(boxAt(layoutGraph(withRecipes(200)), RECIPES).h).toBe(capped);
   });
 
-  test("the pager still adds its strip to a capped box", () => {
-    // The cap is about the drawing, not about what the box holds: a page still unread is still
-    // offered, and the footer is still budgeted for.
+  test("a page still unread adds nothing to a capped box", () => {
+    // The cap is about the drawing, and so is the reading now: the rows past it are scrolled to, and
+    // reaching the end of that scroll is what asks for the next page. So a box with more to read is
+    // exactly as tall as one with nothing left, and there is no strip at its foot to budget for.
     let state = createGraphState();
     state = landRoot(state, "recipe", { records: cards("recipe", 40), hasMore: true });
-    expect(boxAt(layoutGraph(state), RECIPES).h).toBe(TITLE_H + MAX_ROWS * ROW_H + FOOTER_H);
+    expect(boxAt(layoutGraph(state), RECIPES).h).toBe(TITLE_H + MAX_ROWS * ROW_H);
+  });
+
+  test("a box with a page unread is always a box that scrolls, which is what makes it readable", () => {
+    // THE ONE RELATION THE GESTURE RESTS ON, pinned because nothing else would notice it breaking. A
+    // page is `DEFAULT_GROUP` rows and a box draws `MAX_ROWS` of them, so a read that came back
+    // saying `hasMore` came back with more rows than its box can draw — and a list that does not
+    // overflow fires no scroll event at all. Shrink a page below the cap and the rows past the first
+    // page become unreachable, with no button left to ask for them.
+    expect(DEFAULT_GROUP).toBeGreaterThan(MAX_ROWS);
   });
 
   test("the boxes under it in its column pack against the capped height", () => {
@@ -677,6 +694,58 @@ describe("a box past MAX_ROWS is capped and scrolls", () => {
       group("report", cards("report", 1)),
     ]);
     expect(layoutGraph(state).edges.find((held) => held.key === A_REPORTS)!.sx).toBe(PAD + NODE_W);
+  });
+});
+
+/**
+ * The end of a scrolling list, which is the whole of how a box's next page is asked for.
+ *
+ * The three numbers belong to the panel — it reads them off the element its rows are in — and what
+ * they MEAN is decided here, which is the same split `metricsFor` makes and the reason a gesture that
+ * only happens in a browser can be checked without one. Nothing in the layout depends on the answer:
+ * no box moves and no link is re-anchored, so this is arithmetic about a request and not about a
+ * coordinate.
+ */
+describe("atListEnd is what asks for the next page", () => {
+  /** A capped box's list: twelve rows of forty in view, which is the shape every paging box has. */
+  const VIEW = MAX_ROWS * ROW_H;
+  const CONTENT = 40 * ROW_H;
+
+  test("the top of a long list is not the end of it", () => {
+    expect(atListEnd(0, CONTENT, VIEW)).toBe(false);
+    expect(atListEnd(ROW_H, CONTENT, VIEW)).toBe(false);
+  });
+
+  test("scrolled to the last pixel, it is", () => {
+    expect(atListEnd(CONTENT - VIEW, CONTENT, VIEW)).toBe(true);
+  });
+
+  test("and a few pixels short of it, because a scroll offset is fractional", () => {
+    // A trackpad hands back 1099.5 where the arithmetic says 1100, and a comparison against the exact
+    // end is a page that arrives on one machine and not on the next.
+    expect(atListEnd(CONTENT - VIEW - END_SLACK, CONTENT, VIEW)).toBe(true);
+    expect(atListEnd(CONTENT - VIEW - END_SLACK - 1, CONTENT, VIEW)).toBe(false);
+  });
+
+  test("the slack is well under a row, so reaching the end means the last row is in view", () => {
+    // A slack of a whole row or more would ask for the page while the row that prompted it was still
+    // on its way up the box.
+    expect(END_SLACK).toBeLessThan(ROW_H);
+  });
+
+  test("a list with nothing to scroll is at its end, and nothing acts on that", () => {
+    // True arithmetic, unreachable behaviour: a list this shape fires no scroll event, and the
+    // relation between `DEFAULT_GROUP` and `MAX_ROWS` above is what keeps a box with a page to read
+    // from ever being this shape.
+    expect(atListEnd(0, VIEW, VIEW)).toBe(true);
+  });
+
+  test("a page that has just landed leaves the reader off the end again", () => {
+    // WHY ONE SCROLL TO THE BOTTOM DOES NOT READ THE WHOLE ARCHIVE. The offset does not move when the
+    // rows arrive — the list grows below it — so the next page waits for the next scroll, and a box is
+    // emptied of its table by a reader who keeps going rather than by one who arrived once.
+    const bottom = CONTENT - VIEW;
+    expect(atListEnd(bottom, CONTENT + DEFAULT_GROUP * ROW_H, VIEW)).toBe(false);
   });
 });
 

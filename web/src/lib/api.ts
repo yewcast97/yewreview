@@ -840,7 +840,7 @@ export function fetchRecordNamed(
  * holds the name and offer another, where a form could only hand the sentence back.
  */
 
-/** One referrer group on its own, paged. What "show more" asks for. */
+/** One referrer group on its own, paged. What a box scrolled to the end of its list asks for. */
 export function fetchReferrers(
   table: RecordTable,
   id: string,

@@ -3,7 +3,10 @@
  * convention at the top of base.css.
  *
  * THIS SHEET IS HALF OF A CONTRACT. `lib/graphLayout.ts` computes every box's height as arithmetic
- * over constants — a title bar, some rows, maybe a footer — and never measures the DOM. That is what
+ * over constants — a title bar over its rows, or over the one line of prose a box with no rows draws
+ * instead — and never measures the DOM. NOTHING FOLLOWS THE ROWS: the "show more" strip that once did
+ * is gone, and a page still unread costs a box no height, so anything added at the foot of a box needs
+ * a term in that arithmetic before it is drawn here. That is what
  * makes the layout testable and what stops the graph from re-packing itself a frame after it is
  * painted, under the cursor of somebody about to drag a row into the composer. The price is that
  * the drawing must be exactly the size the arithmetic assumed: A ROW IS ONE LINE, FIXED HEIGHT, AND
@@ -43,11 +46,12 @@
  * second column to stack against it — and the canvas is navigated rather than scrolled, so a
  * smaller window costs the graph nothing but a pan.
  *
- * EVERY RULE THAT ARGUES WITH A PRIMITIVE IS WRITTEN WITH TWO CLASSES — `.btn.graph__more`, not
- * `.graph__more`. Which of this sheet and base.css the bundler emits first is the bundler's business
- * and not the import order's (see the warning at base.css:202-211), so at equal specificity a
- * single-class rule is a coin toss that is re-tossed on every build: the footer would come out 30px
- * tall inside a box the layout budgeted 26 for, and only on some builds. The extra class is the fix.
+ * EVERY RULE THAT ARGUES WITH A PRIMITIVE IS WRITTEN WITH TWO CLASSES — `.btn--icon.graph__disclose`,
+ * not `.graph__disclose`. Which of this sheet and base.css the bundler emits first is the bundler's
+ * business and not the import order's (see the warning at base.css:202-211), so at equal specificity a
+ * single-class rule is a coin toss that is re-tossed on every build: the arrow would come out
+ * `.btn--icon`'s 28px square with none of its own margin, sitting on top of the output socket every
+ * wire in the graph is anchored to, and only on some builds. The extra class is the fix.
  */
 
 /* -- the board ------------------------------------------------------------------------------------ */
@@ -384,11 +388,11 @@
    * HOW FAR A FILL INSIDE THIS BOX HAS TO STAY CLEAR OF THE LINE THE BOX IS DRAWN WITH, and it is
    * one number because there is one frame: the layer sits 2px in (the rule below), strokes 2.5px of
    * chalk, and is pulled through a displacement filter whose scale is 3 — which moves that stroke by
-   * up to a pixel and a half either way. Six is the sum. Everything that paints a rectangle in here
-   * — a row's highlight, the "show more" strip, a refusal's panel — is inset by it, because a fill
-   * that reached the box's own edge would paint over the chalk line and the box would lose its edge
-   * exactly where the reader is pointing. Rows themselves are NOT inset: the socket is cut into the
-   * box's right edge and every wire in the graph is anchored to it.
+   * up to a pixel and a half either way. Six is the sum. Everything that paints a rectangle in here —
+   * a row's highlight, a refusal's panel — is inset by it, because a fill that reached the box's own
+   * edge would paint over the chalk line and the box would lose its edge exactly where the reader is
+   * pointing. Rows themselves are NOT inset: the socket is cut into the box's right edge and every
+   * wire in the graph is anchored to it.
    */
   --node-clear: 6px;
 }
@@ -557,8 +561,8 @@
  * SMALLER THAN THE STRIP IT SITS IN, at 20px inside a 28px title bar, for the reason at the top of
  * this file: `layoutGraph` budgeted exactly `--graph-title-h` for that strip and a control taller
  * than it would push the box's own rows away from the links that arrive at them. Two classes for the
- * same reason `.graph__more` has two — at equal specificity this would lose to `.btn--icon`'s own
- * 28px on source order, and which sheet the bundler emits first is not the import order's business.
+ * reason at the top of this file — at equal specificity this would lose to `.btn--icon`'s own 28px on
+ * source order, and which sheet the bundler emits first is not the import order's business.
  *
  * Always visible, like every control on the rows below it. There are a couple of these on a canvas
  * and they are how a reader with an empty database starts at all; a way in that appears only once
@@ -592,11 +596,11 @@
  * The rows, and the one box in this window that is allowed to hold more than it shows.
  *
  * `flex: 0 1` and `min-height: 0` are the whole of how the cap is enforced: the node's height is
- * inline from the layout and the title bar and the "show more" strip are both `flex: 0 0`, so this
- * is the only item with any give, and what is left over for it is exactly `MAX_ROWS * ROW_H`. It
- * shrinks to that and the rows past it are scrolled to rather than drawn below the box's own edge.
- * Nothing here declares a height — declaring one would be a second copy of an arithmetic
- * `graphLayout.ts` already did, and the two would agree until one of them was tuned.
+ * inline from the layout and the title bar above this is `flex: 0 0`, so this is the only item with
+ * any give, and what is left over for it is exactly `MAX_ROWS * ROW_H`. It shrinks to that and the
+ * rows past it are scrolled to rather than drawn below the box's own edge. Nothing here declares a
+ * height — declaring one would be a second copy of an arithmetic `graphLayout.ts` already did, and
+ * the two would agree until one of them was tuned.
  */
 .graph__rows {
   display: flex;
@@ -613,7 +617,9 @@
  *
  * `overscroll-behavior: contain` stops the chain at this box: the canvas around it swallows the
  * wheel to zoom with, and a list that handed the event back at its last row would zoom the board out
- * from under a reader who was still scrolling.
+ * from under a reader who was still scrolling. Reaching that last row is also the request for the
+ * next page — GraphPanel's `onScroll` reads this element's offset and nothing else about it — so the
+ * gesture that fills a box is the same one that reads it.
  *
  * THE GUTTER IS TEN PIXELS BECAUSE THE LAYOUT SOLVED THE WIRES FOR TEN. `--graph-scrollbar-w` is
  * `SCROLLBAR_W` published from `graphLayout.ts`, and the same number is subtracted from the start of
@@ -682,15 +688,39 @@
 /*
  * AND AT THE FOOT OF THE BOX IT STOPS SHORT DOWNWARD TOO. A box's height is `TITLE_H + rows * ROW_H`
  * with nothing spare (`graphLayout.ts`), so the last row's bottom edge IS the box's bottom edge: a
- * full-height wash there wipes out the bottom of the frame and both of its corners. `:last-child` on
- * the rows themselves is not enough — where a "show more" strip follows, it is the strip that meets
- * the frame and the rows never do, which is why the container is asked as well.
+ * full-height wash there wipes out the bottom of the frame and both of its corners. The row is asked
+ * on its own because the list is the last thing in the box — the pager strip that used to follow it is
+ * gone, and the page it offered is read by scrolling this list to its end. Anything put after the rows
+ * again would meet the frame in their place and would need the inset itself.
+ *
+ * IT IS THE LAST ROW OF A CAPPED BOX TOO, which is the row that meets the frame once the reader has
+ * scrolled to the end of a list. Anywhere above the end that row is clipped by the box, and the inset
+ * changes nothing that can be seen.
  */
-.graph__rows:last-child > .graph__row:last-child::before {
+.graph__row:last-child::before {
   bottom: var(--node-clear);
 }
 
 .graph__row:hover::before {
+  background: var(--bg-hover);
+}
+
+/*
+ * THE SAME RECORD, WHEREVER ELSE IT IS DRAWN. A record reached by two routes is two rows in two boxes
+ * — see `state/graph.ts` on identity being a route — and `useTwinRows` writes `data-twin` onto every
+ * row carrying the hovered row's `data-card`. It takes the hover wash EXACTLY: what the mark says is
+ * that these rows are one record appearing more than once, and a shade of its own would read as a
+ * second kind of fact instead of as the same one. There is nothing here the stylesheet could do by
+ * itself — `:has()` can ask whether a row holds the pointer, not whether a row in another subtree
+ * names the same record.
+ *
+ * AN OPEN ROW KEEPS ITS OWN HOLD, which is the whole of what the `:not` is for. `--expanded` is the
+ * stronger wash and it is the mark saying which row the boxes to its right came from; washing it back
+ * down to hover's shade because the pointer is resting on a twin elsewhere would take that away for
+ * as long as the reader is looking at the other copy. The row under the pointer is not the same case
+ * and needs no exception — it has the pointer on it to say why it looks different.
+ */
+.graph__row[data-twin]:not(.graph__row--expanded)::before {
   background: var(--bg-hover);
 }
 
@@ -905,31 +935,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* -- show more --------------------------------------------------------------------------------------- */
-
-/* Fixed height, inside the box, because the layout added `--graph-footer-h` for it. A page loaded
-   here lands in the store rather than in this component: a refresh half a second later replaces the
-   slice, and extras held out here would vanish under the pointer that asked for them. The sans at
-   16px, and at `.btn`'s own 600 rather than a step above it: this is a button in a box of rows and
-   not the box's title, so it should not out-weigh the strip at the top. It fits the 26px budget at
-   line-height 1. */
-/* THE CLEARANCE COMES OUT OF THE STRIP, NOT OUT OF THE BUDGET. This is the last thing in the box, so
-   its fill would paint over the frame's bottom line and its divider would cross both side lines —
-   the rows' problem one row lower down. The margin holds it off all three, and the height gives back
-   exactly what the margin takes, so `TITLE_H + rows * ROW_H + FOOTER_H` is still the height the
-   packing solved. A 16px line box still clears the 20px that leaves. */
-.btn.graph__more {
-  flex: 0 0 calc(var(--graph-footer-h) - var(--node-clear));
-  height: calc(var(--graph-footer-h) - var(--node-clear));
-  margin: 0 var(--node-clear) var(--node-clear);
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1;
 }
 
 /* -- a refusal ---------------------------------------------------------------------------------------- */
