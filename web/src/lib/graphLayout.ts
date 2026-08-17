@@ -17,10 +17,13 @@
  * those fractions: a narrow panel gets a tight packing rather than something tighter still.
  *
  * HEIGHTS ARE CLOSED-FORM, NEVER MEASURED. A box is a title bar, some rows and maybe a footer, and every one of those is a fixed number of pixels, so its height is arithmetic:
- * `TITLE_H + rows * ROW_H + (hasMore ? FOOTER_H : 0)`. HOW MANY ROWS is
+ * `TITLE_H + min(rows, MAX_ROWS) * ROW_H + (hasMore ? FOOTER_H : 0)`. HOW MANY ROWS is
  * part of the same arithmetic and not a separate question — a page the reader has not extended
  * draws only what came back,
- * draws exactly one — which is why `boxesFor` decides what is drawn rather than the panel.
+ * draws exactly one — which is why `boxesFor` decides what is drawn rather than the panel. The CAP
+ * is part of it too and changes nothing about the method: past `MAX_ROWS` the box is a fixed height
+ * and the list inside it scrolls, which is still a number this module decides and the stylesheet
+ * obeys rather than one it reads back.
  * The alternative is measuring the rendered
  * boxes and packing from what comes back, and that fails twice over. It relays out UNDER THE CURSOR:
  * the first paint puts the boxes somewhere, the measurement moves them, and a click aimed at a row
@@ -86,6 +89,38 @@ export const PAD = 12;
  * leaves 18px of slack around a 16px line box, where the old pairing left 14 around 20. */
 export const TITLE_H = 34;
 export const ROW_H = 40;
+/**
+ * THE TALLEST A BOX MAY BE, IN ROWS. Past this the box is exactly this tall and its list scrolls.
+ *
+ * A box's height is its row count, and a table's row count is whatever the archive has grown to: a
+ * hundred script invocations is one box a thousand pixels closer to the bottom of the canvas than
+ * anything beside it, and every box packed under it in that column starts below the whole run. What
+ * that costs is the picture — the reader zooms out until the rows are unreadable to see the shape of
+ * the graph, or reads the rows and cannot see the shape. Twelve is a screenful at any zoom worth
+ * reading at, and it is enough rows that the cap is reached by an archive rather than by ordinary
+ * use.
+ *
+ * IT DOES NOT CHANGE WHAT THE BOX HOLDS. The count on the title bar is still the group's own total
+ * and "show more" still reads the next page — what is capped is the DRAWING. Nothing about this is
+ * measured: the box is `min(rows, MAX_ROWS)` tall by the same arithmetic it was always computed by,
+ * and the stylesheet's end of the bargain is that the list inside it scrolls rather than growing.
+ */
+export const MAX_ROWS = 12;
+/**
+ * The gutter a scrolling list takes out of a box's width.
+ *
+ * This window's scrollbars are drawn rather than native, and they take real layout width — `base.css`
+ * argues why at the rule. So a box whose rows scroll is a box whose rows are this much narrower, and
+ * the socket a wire leaves from sits at the right edge of a ROW. The layout has to know the number
+ * for the same reason it knows `ROW_H`: `place` anchors every link in closed form, and a link solved
+ * against the box's edge while the dot sits ten pixels inside it comes away from its own row.
+ *
+ * The stylesheet is handed this back as `--graph-scrollbar-w` and sizes the graph's own bars with it,
+ * so the arithmetic and the drawing cannot drift apart. Gecko is the one engine that cannot be told
+ * a width — it gets `scrollbar-width: thin` from `base.css` and whatever that means locally — and a
+ * pixel or two of disagreement there moves a link's start, nothing else.
+ */
+export const SCROLLBAR_W = 10;
 /** The "show more" strip at the foot of a box that has not read all of its rows. */
 export const FOOTER_H = 26;
 /** One line of prose where the rows would be: "nothing refers to this", or "reading…". */
@@ -169,8 +204,10 @@ export function metricsFor(viewport: { width: number; height: number } | null): 
 
 export type GraphLayout = { boxes: LayoutBox[]; edges: LayoutEdge[]; width: number; height: number };
 
-/** A box that has been placed, in PRE-OFFSET space, plus the drag it and its ancestors carry. */
-type Placed = { depth: number; packedY: number; carried: NodeOffset };
+/** A box that has been placed, in PRE-OFFSET space, plus the drag it and its ancestors carry.
+ * `scrolls` is whether this box has more rows than it draws, which is the one thing about a box's
+ * CONTENT that a link leaving one of its rows depends on — see `SCROLLBAR_W`. */
+type Placed = { depth: number; packedY: number; carried: NodeOffset; scrolls: boolean };
 
 /** A box about to be placed. `rank` orders the boxes of one expansion among themselves. */
 type Pending = {
@@ -190,14 +227,30 @@ type Pending = {
 
 const NO_DRAG: NodeOffset = { dx: 0, dy: 0 };
 
-/** The closed form. An empty box is a line of prose rather than a title bar with nothing under it. */
+/** The closed form. An empty box is a line of prose rather than a title bar with nothing under it,
+ * and a box with more rows than `MAX_ROWS` is exactly as tall as `MAX_ROWS` of them — the rest are
+ * reached by scrolling the list rather than by making the box taller. */
 function boxHeight(rows: number, hasMore: boolean): number {
-  return TITLE_H + (rows === 0 ? NOTE_H : rows * ROW_H) + (hasMore ? FOOTER_H : 0);
+  const drawn = rows === 0 ? NOTE_H : Math.min(rows, MAX_ROWS) * ROW_H;
+  return TITLE_H + drawn + (hasMore ? FOOTER_H : 0);
 }
 
-/** Where a row sits inside its box, before any drag. */
+/**
+ * Where a row sits inside its box, before any drag — and where a link leaving it starts.
+ *
+ * CLAMPED TO THE ROWS THE BOX DRAWS. Past `MAX_ROWS` a box does not grow, so an unclamped row a
+ * hundred deep would anchor its link below the box entirely, running to a point on bare canvas. The
+ * last drawn row is the honest floor: the link still leaves the box it belongs to, and the child box
+ * still packs beside it.
+ *
+ * WHAT IT DOES NOT DO IS FOLLOW THE SCROLL, and that is the same bargain the whole module makes.
+ * A scroll position is a measurement of the DOM; taking one would put a link's anchor — and, through
+ * `place`, every box packed beside it — at the mercy of a wheel event, which is exactly the
+ * re-packing under the reader's cursor this file exists to refuse. So a link leaves the row's
+ * unscrolled place, and a reader who scrolls a long box scrolls the rows past their wires.
+ */
 function rowTop(boxY: number, index: number): number {
-  return boxY + TITLE_H + index * ROW_H;
+  return boxY + TITLE_H + Math.min(index, MAX_ROWS - 1) * ROW_H;
 }
 
 /**
@@ -238,7 +291,12 @@ export function layoutGraph(state: GraphState, metrics: LayoutMetrics): GraphLay
       y,
       h: pending.h,
     });
-    placed.set(pending.path, { depth, packedY, carried });
+    placed.set(pending.path, {
+      depth,
+      packedY,
+      carried,
+      scrolls: pending.rows.length > MAX_ROWS,
+    });
     for (let i = 0; i < pending.rows.length; i += 1) {
       rows.set(rowPath(pending.path, pending.rows[i]!), { box: pending.path, index: i });
     }
@@ -247,9 +305,18 @@ export function layoutGraph(state: GraphState, metrics: LayoutMetrics): GraphLay
     // Both ends from the FINAL coordinates, which is what keeps a link attached to a node being
     // dragged — and to a node whose ancestor is being dragged, since the drag is already in
     // `carried` by the time either end is computed.
+    //
+    // The source end is the right edge of the ROW, which is the box's own edge until the box's list
+    // scrolls: a gutter takes real width out of every row in it, and the socket the wire is drawn to
+    // leave from goes with them. See `SCROLLBAR_W`.
     edges.push({
       key: pending.path,
-      sx: metrics.padX + parent.depth * (NODE_W + metrics.gapX) + parent.carried.dx + NODE_W,
+      sx:
+        metrics.padX +
+        parent.depth * (NODE_W + metrics.gapX) +
+        parent.carried.dx +
+        NODE_W -
+        (parent.scrolls ? SCROLLBAR_W : 0),
       sy: pending.source.rowY + parent.carried.dy + ROW_H / 2,
       tx: x,
       ty: y + TITLE_H / 2,

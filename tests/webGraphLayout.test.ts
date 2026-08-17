@@ -16,8 +16,13 @@
  * out, and a suppressed pager — and it had a whole describe block here for the arithmetic in both
  * states. Instructions are one immutable recipe now, so there are no versions to stack: `STACK_H`,
  * `LayoutBox.stack` and the fold went with them, and the only things left that reorder anything are
- * column zero's `recipe` and `script` boxes — the two whose rows carry a standing — which are drawn
- * active-first and asserted below.
+ * column zero's `recipe`, `thesis` and `script` boxes — the three whose rows carry a standing —
+ * which are drawn active-first and asserted below.
+ *
+ * A BOX PAST `MAX_ROWS` IS THE ONE PLACE A BOX HOLDS MORE THAN IT DRAWS, and it is still closed
+ * form: the height stops at the cap and the rows inside scroll. Its own block below asserts what
+ * that does to the two things a height feeds — the boxes packed under it, and the links leaving its
+ * rows.
  *
  * THE PACKING RULES ARE STATED IN `DEFAULT_METRICS` and the METRICS ARE TESTED SEPARATELY, at the
  * foot of this file. Splitting them that way is the point of `metricsFor` being its own function:
@@ -34,11 +39,13 @@ import {
   COL_GAP,
   DEFAULT_METRICS,
   FOOTER_H,
+  MAX_ROWS,
   NODE_W,
   NOTE_H,
   PAD,
   REFUSAL_H,
   ROW_H,
+  SCROLLBAR_W,
   TITLE_H,
   bezierPath,
   layoutGraph as packGraph,
@@ -46,6 +53,7 @@ import {
 } from "../web/src/lib/graphLayout.ts";
 import type { GraphState, RootTable } from "../web/src/state/graph.ts";
 import {
+  ABANDONED,
   INACTIVE,
   ROOT_TABLES,
   boxPath,
@@ -271,11 +279,11 @@ describe("column zero is the four tables a reader starts from", () => {
 /**
  * The one ordering in this graph, and the one place the layout does not draw the rows it was handed.
  *
- * `activeFirst` is called by `layoutGraph` for the two column-zero boxes `ordersByStanding` names —
- * `recipe` and `script` — and by the panel for the same boxes, and the two calls must agree because
- * a link arrives at a row BY INDEX: an ordering applied in one of those places and not the other
- * would draw every edge out of the wrong row. So what is asserted here is the coordinate, not the
- * array — the array is `tests/webGraph.test.ts`'s business.
+ * `activeFirst` is called by `layoutGraph` for the three column-zero boxes `ordersByStanding` names
+ * — `recipe`, `thesis` and `script` — and by the panel for the same boxes, and the two calls must
+ * agree because a link arrives at a row BY INDEX: an ordering applied in one of those places and not
+ * the other would draw every edge out of the wrong row. So what is asserted here is the coordinate,
+ * not the array — the array is `tests/webGraph.test.ts`'s business.
  */
 describe("the boxes with a standing are drawn active-first, and the links follow the rows", () => {
   /** Held newest-first-and-retired, which is the order the merge legitimately leaves behind: the
@@ -333,24 +341,46 @@ describe("the boxes with a standing are drawn active-first, and the links follow
     );
   });
 
-  test("no box without a standing is reordered", () => {
-    // The law this is the exception to. A thesis has no standing to sort by — its sublabel carries
-    // the newest assessment — and its box is not sorted by anything else either: the newest row
-    // stays where the merge left it, which is where the reader last saw it.
-    const older = { ...card("thesis", "t1"), sublabel: "supported", meta: 1_000 };
-    const newer = { ...card("thesis", "t2"), sublabel: "unassessed", meta: 2_000 };
-    const state = withRoots({ thesis: [older, newer] });
-    const row = rowPath(rootPath("thesis"), newer);
-    const opened = land(expand(state, row, newer), row, [
+  test("the thesis box is reordered too, on the standing its ledger carries", () => {
+    // The third box with a standing. A thesis's is the newest tag in its assessment ledger rather
+    // than a status column, so `abandoned` is the word — and the box reads newest-first with the
+    // closed claims under it, exactly as the other two do.
+    const closed = { ...card("thesis", "t1"), sublabel: ABANDONED, meta: 2_000 };
+    const testing = { ...card("thesis", "t2"), sublabel: "unassessed", meta: 1_000 };
+    const state = withRoots({ thesis: [closed, testing] });
+    const row = rowPath(rootPath("thesis"), closed);
+    const opened = land(expand(state, row, closed), row, [
       group("thesis_assessment", cards("thesis_assessment", 1)),
     ]);
     const layout = layoutGraph(opened);
     const box = boxPath(row, "thesis_assessment");
     const theses = boxAt(layout, rootPath("thesis"));
-    // Row ONE, where it is HELD — not row zero, which is where a newest-first sort would have put
-    // it. The thesis box is never re-sorted, by a standing or by anything else.
+    // Row ONE: the claim still being tested is drawn above it however the state holds them.
     expect(layout.edges.find((edge) => edge.key === box)?.sy).toBe(
       theses.y + TITLE_H + ROW_H + ROW_H / 2,
+    );
+  });
+
+  test("a box that is not one of the three is drawn in the order it is held", () => {
+    // The law this is the exception to, asserted on a GROUP box — the shape the exception can never
+    // reach, since `ordersByStanding` is asked of a ROOT table and a group box names none. These
+    // reports are held oldest-first, which a newest-first sort would invert; the box draws them
+    // where the merge left them, which is where the reader last saw them.
+    const older = { ...card("report", "r1"), meta: 1_000 };
+    const newer = { ...card("report", "r2"), meta: 2_000 };
+    let state = withRoots({ recipe: [A] });
+    state = land(expand(state, A_ROW, A), A_ROW, [group("report", [older, newer])]);
+    const reportRow = rowPath(A_REPORTS, newer);
+    state = land(expand(state, reportRow, newer), reportRow, [
+      group("script_invocation", cards("script_invocation", 1)),
+    ]);
+    const layout = layoutGraph(state);
+    const box = boxPath(reportRow, "script_invocation");
+    const reports = boxAt(layout, A_REPORTS);
+    // Row ONE, where it is HELD — not row zero, which is where a newest-first sort would have put
+    // it.
+    expect(layout.edges.find((edge) => edge.key === box)?.sy).toBe(
+      reports.y + TITLE_H + ROW_H + ROW_H / 2,
     );
   });
 });
@@ -567,6 +597,86 @@ describe("what a box is when it has nothing to show", () => {
       y: PAD,
       h: REFUSAL_H,
     });
+  });
+});
+
+/**
+ * The cap, which is the one place a box holds more than it draws.
+ *
+ * It is arithmetic like everything else here — `min(rows, MAX_ROWS)` — and the point of asserting it
+ * is what it does to the two things downstream of a box's height: the boxes packed under it in its
+ * own column, and the links leaving its rows. A box that grew with its archive would push its
+ * neighbours off the bottom of the canvas; a link anchored past the cap would run to a point on bare
+ * board.
+ *
+ * THE GUTTER IS PART OF THE SAME ARITHMETIC. A scrolling list takes real layout width in this window
+ * (`base.css`), so the socket every wire leaves from moves inward with the rows, and `place`
+ * subtracts the same `SCROLLBAR_W` the stylesheet is handed back.
+ */
+describe("a box past MAX_ROWS is capped and scrolls", () => {
+  /** A root box holding `count` recipes, none of which carries a `meta` or a standing — so
+   * `activeFirst` hands the array straight back and row `i` is the `i`th card. */
+  function withRecipes(count: number): GraphState {
+    return withRoots({ recipe: cards("recipe", count) });
+  }
+
+  test("a box grows a row at a time up to the cap and not past it", () => {
+    expect(boxAt(layoutGraph(withRecipes(MAX_ROWS - 1)), RECIPES).h).toBe(
+      TITLE_H + (MAX_ROWS - 1) * ROW_H,
+    );
+    const capped = TITLE_H + MAX_ROWS * ROW_H;
+    expect(boxAt(layoutGraph(withRecipes(MAX_ROWS)), RECIPES).h).toBe(capped);
+    expect(boxAt(layoutGraph(withRecipes(MAX_ROWS + 1)), RECIPES).h).toBe(capped);
+    expect(boxAt(layoutGraph(withRecipes(200)), RECIPES).h).toBe(capped);
+  });
+
+  test("the pager still adds its strip to a capped box", () => {
+    // The cap is about the drawing, not about what the box holds: a page still unread is still
+    // offered, and the footer is still budgeted for.
+    let state = createGraphState();
+    state = landRoot(state, "recipe", { records: cards("recipe", 40), hasMore: true });
+    expect(boxAt(layoutGraph(state), RECIPES).h).toBe(TITLE_H + MAX_ROWS * ROW_H + FOOTER_H);
+  });
+
+  test("the boxes under it in its column pack against the capped height", () => {
+    // What the cap is for. Forty recipes would otherwise put the thesis box sixteen hundred pixels
+    // down a column nothing else is using.
+    const layout = layoutGraph(withRecipes(40));
+    expect(boxAt(layout, rootPath("thesis")).y).toBe(PAD + TITLE_H + MAX_ROWS * ROW_H + BOX_GAP);
+  });
+
+  test("a link leaving a row past the cap still leaves the box", () => {
+    // Clamped to the last row the box draws rather than anchored where an uncapped box would have
+    // put it: a link is drawn from a point, and a point below the box is a point on bare board.
+    const rows = cards("recipe", 40);
+    const deep = rows[30]!;
+    const row = rowPath(RECIPES, deep);
+    const state = land(expand(withRecipes(40), row, deep), row, [
+      group("report", cards("report", 1)),
+    ]);
+    const layout = layoutGraph(state);
+    const edge = layout.edges.find((held) => held.key === boxPath(row, "report"))!;
+    const box = boxAt(layout, RECIPES);
+    expect(edge.sy).toBe(box.y + TITLE_H + (MAX_ROWS - 1) * ROW_H + ROW_H / 2);
+    expect(edge.sy).toBeLessThan(box.y + box.h);
+  });
+
+  test("and it starts at the row's edge, which the gutter has moved inward", () => {
+    const rows = cards("recipe", 40);
+    const first = rows[0]!;
+    const row = rowPath(RECIPES, first);
+    const state = land(expand(withRecipes(40), row, first), row, [
+      group("report", cards("report", 1)),
+    ]);
+    const edge = layoutGraph(state).edges.find((held) => held.key === boxPath(row, "report"))!;
+    expect(edge.sx).toBe(PAD + NODE_W - SCROLLBAR_W);
+  });
+
+  test("a box that does not scroll keeps the whole width", () => {
+    const state = land(expand(withRoots({ recipe: [A, B] }), A_ROW, A), A_ROW, [
+      group("report", cards("report", 1)),
+    ]);
+    expect(layoutGraph(state).edges.find((held) => held.key === A_REPORTS)!.sx).toBe(PAD + NODE_W);
   });
 });
 

@@ -15,7 +15,10 @@
  * positioned at coordinates that were decided before React saw them. The stylesheet holds up the
  * other end of that bargain: a row is exactly `--graph-row-h` tall and never wraps, a title bar is
  * exactly `--graph-title-h`, and the constants are published onto the surface as custom properties
- * so there is one number rather than two that must agree.
+ * so there is one number rather than two that must agree. A box past `MAX_ROWS` scrolls its rows,
+ * and that is not a hole in the rule: the box is a fixed height the layout computed from the same
+ * row count, and what scrolls inside it is content the arithmetic already decided not to make room
+ * for.
  *
  * The CANVAS's own rectangle IS read, in three places and for three reasons: a wheel event has to
  * know where in the canvas the pointer is, a fit has to know how big the viewport is, and
@@ -101,9 +104,11 @@ import { familyOf } from "../lib/family.ts";
 import type { GraphLayout, LayoutBox } from "../lib/graphLayout.ts";
 import {
   FOOTER_H,
+  MAX_ROWS,
   NODE_W,
   NOTE_H,
   ROW_H,
+  SCROLLBAR_W,
   TITLE_H,
   bezierPath,
   layoutGraph,
@@ -121,7 +126,7 @@ import {
   isReading,
   parentPath,
   rootOf,
-  isInactive,
+  isRetired,
   activeFirst,
   ordersByStanding,
   rootTableOf,
@@ -441,12 +446,21 @@ function useCanvasSize(canvas: {
  *
  * macOS pinch arrives here as a wheel event with `ctrlKey` set and needs no special case at all: it
  * is a smaller `deltaY` through the same exponential, which is exactly what a pinch should be.
+ *
+ * ONE THING ON THE BOARD KEEPS ITS OWN WHEEL, and it is the same hit test the pan makes: a box past
+ * `MAX_ROWS` draws a scrolling list, and a wheel that landed inside one belongs to that list. This
+ * handler swallows the event for every reader of the canvas, so without the test a long box would be
+ * one the reader can see the top of and never reach the bottom of. The list stops the chain itself
+ * (`overscroll-behavior` in `graph.css`), so running out of rows does not hand the wheel back to the
+ * zoom half a gesture later.
  */
 function useWheelZoom(canvas: { current: HTMLDivElement | null }): void {
   useEffect(() => {
     const element = canvas.current;
     if (element === null) return;
     const onWheel = (event: WheelEvent): void => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".graph__rows--scrolls") !== null) return;
       event.preventDefault();
       const box = element.getBoundingClientRect();
       const pointer = { x: event.clientX - box.left, y: event.clientY - box.top };
@@ -542,6 +556,11 @@ function surfaceStyle(layout: GraphLayout, view: ViewTransform): CSSProperties {
     "--graph-row-h": `${ROW_H}px`,
     "--graph-footer-h": `${FOOTER_H}px`,
     "--graph-note-h": `${NOTE_H}px`,
+    // The gutter a scrolling box's rows give up, which the packing has already taken out of every
+    // link leaving one of them. It is published for the same reason the four above it are: the
+    // stylesheet sizes the graph's own scrollbars with it, so the width the wires were solved
+    // against and the width the browser draws are one number.
+    "--graph-scrollbar-w": `${SCROLLBAR_W}px`,
   } as CSSProperties;
 }
 
@@ -716,7 +735,18 @@ function GraphNode({ box, graph }: GraphNodeProps): ReactElement {
               : `no ${box.title} rows yet`}
         </p>
       ) : (
-        <div className="graph__rows">
+        /*
+         * THE ONE SCROLLER ON THIS BOARD, and it is declared rather than discovered: the class says
+         * this list holds more than the box draws, which `layoutGraph` decided in closed form from
+         * the same row count. Nothing here measures whether it overflows — the arithmetic already
+         * knows, and asking the DOM would be the measurement the whole panel refuses.
+         *
+         * The class is also what the canvas's wheel handler tests. That listener swallows every
+         * wheel event on the board to zoom with it, so without a way to recognise a list that
+         * scrolls, a box past the cap would be one the reader could see the top of and never reach
+         * the bottom of.
+         */
+        <div className={shown.length > MAX_ROWS ? "graph__rows graph__rows--scrolls" : "graph__rows"}>
           {shown.map((card) => (
             <GraphRow
               key={`${card.table}:${card.id}`}
@@ -937,7 +967,7 @@ function addFor(box: LayoutBox, graph: GraphState): AddAction | null {
     // knows the answer: the same standing that strikes the row through is on the card. A control
     // that can only be told no is worse than no control — it reads as something the reader has done
     // wrong rather than as a specification nobody is writing to any more.
-    if (isInactive(recipe)) return null;
+    if (isRetired(recipe)) return null;
     return {
       label: "Generate a report",
       title:
@@ -1077,13 +1107,13 @@ function GraphRow({ box, card, graph, via }: GraphRowProps): ReactElement {
     // The row the last click landed on, kept marked so a reader who has scrolled away and come back
     // can still see where they were reading from.
     graph.selection === path ? "graph__row--selected" : "",
-    // RETIRED, AND DRAWN AS THE WORD CROSSED OUT. Read off the card's own sublabel rather than from
-    // a table check here: the server says `inactive` there and only there, on exactly the two tables
-    // that have a standing, so this asks the wire what it already said instead of keeping a second
-    // list of which tables can be retired. A shape rather than a shade, on the precedent of the
-    // subagents toggle in `chat.css` — it survives a reader who cannot tell two greys apart, and it
-    // is simply how anybody writing on a board says not this one.
-    isInactive(card) ? "graph__row--inactive" : "",
+    // PUT DOWN, AND DRAWN AS THE WORD CROSSED OUT. Read off the card's own sublabel rather than from
+    // a table check here: the server says `inactive` on the two tables with a status column and
+    // `abandoned` on the thesis whose ledger has closed, so this asks the wire what it already said
+    // instead of keeping a second list of which tables can be retired. A shape rather than a shade,
+    // on the precedent of the subagents toggle in `chat.css` — it survives a reader who cannot tell
+    // two greys apart, and it is simply how anybody writing on a board says not this one.
+    isRetired(card) ? "graph__row--retired" : "",
   ]
     .filter((name) => name !== "")
     .join(" ");

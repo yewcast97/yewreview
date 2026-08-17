@@ -54,7 +54,7 @@
  * its position and gets its card updated, a record that has gone is removed, and a record that is
  * new is appended AT THE BOTTOM of the box it belongs to. Position stability beats newest-first
  * inside a box; the group's own `total`, which the box draws in its title, stays the truth about how
- * many there are. There is exactly ONE exception, it is scoped to the two column-zero boxes whose
+ * many there are. There is exactly ONE exception, it is scoped to the three column-zero boxes whose
  * rows carry a standing, and the whole of the argument for it is written at `activeFirst` rather
  * than assumed here.
  *
@@ -520,29 +520,44 @@ export function setOffset(state: GraphState, path: NodePath, offset: NodeOffset)
 
 // -- the one ordering ----------------------------------------------------------------------------
 
-/** The word the wire uses for a retired row, on the two tables that have one. `sublabel` carries it
- * only when it is true — an active row has no sublabel at all — which is what makes this test the
- * whole of the question. */
+/**
+ * The two words the wire uses for a row that has been PUT DOWN, and there are two because this
+ * schema keeps a standing in two different places.
+ *
+ * `inactive` is the `status` column of `recipe` and of `script`, which the server copies into the
+ * sublabel only when it is true — a row still in use has no sublabel at all. `abandoned` is the
+ * newest tag in a thesis's assessment ledger, and a thesis's sublabel always carries one of that
+ * ledger's words (`unassessed` while nobody has read it). Two spellings of one meaning: nothing is
+ * written against this row any more. The thesis one is the STRONGER of the two — the schema refuses
+ * to revive an abandoned thesis at all, where a retired recipe can be made active again — which is
+ * the reason it is the one most worth marking.
+ */
 export const INACTIVE = "inactive";
+export const ABANDONED = "abandoned";
 
-/** Whether this card is a retired one: a recipe nobody writes reports to any more, or a script that
- * has been replaced. Drawn struck through, and sorted last in the two boxes that can hold one. */
-export function isInactive(card: RecordCard): boolean {
-  return card.sublabel === INACTIVE;
+/** Whether this card is one that has been put down: a recipe nobody writes reports to any more, a
+ * script that has been replaced, a thesis whose ledger closed. Drawn with its name struck through,
+ * and sorted below the rows still in play in the three boxes that can hold one. */
+export function isRetired(card: RecordCard): boolean {
+  return card.sublabel === INACTIVE || card.sublabel === ABANDONED;
 }
 
 /**
- * The boxes drawn active-first: the two column-zero tables whose rows carry a standing.
+ * The boxes drawn active-first: the three column-zero tables whose rows carry a standing.
  *
- * `recipe` and `script` are the only tables in this schema with a status a person can move — the
- * server says so by putting `inactive` in the sublabel there and nowhere else — so they are the only
- * boxes for which "which of these am I still using" is a question at all. Asked of the ROOT table
- * rather than of a box's own, because these two are the only tables nothing points at: neither can
- * appear as a group box, and asking the root is what keeps the panel and the layout asking the same
- * question of the same string.
+ * `recipe` and `script` carry a status a person can move, and the server says so by putting
+ * `inactive` in the sublabel. `thesis` carries one too — it just does not live in a column of its
+ * own: what a thesis is currently worth is the newest row of its assessment ledger, and `abandoned`
+ * is that ledger's terminus. All three answer "which of these am I still working with", and
+ * `information_source` is the one root that does not: its sublabel is the source's TYPE, which is a
+ * fact about how far it sits from the numbers rather than about whether it is still in use.
+ *
+ * Asked of the ROOT table rather than of a box's own, because these three are the only tables
+ * nothing points at: none can appear as a group box, and asking the root is what keeps the panel and
+ * the layout asking the same question of the same string.
  */
 export function ordersByStanding(table: RootTable | null): boolean {
-  return table === "recipe" || table === "script";
+  return table === "recipe" || table === "script" || table === "thesis";
 }
 
 /**
@@ -554,18 +569,26 @@ export function ordersByStanding(table: RootTable | null): boolean {
  * newest-first and a box that took that order would move the row under the reader's cursor half a
  * second after they put it there. Every word of that still holds for every other box in the graph.
  *
- * WHY THESE TWO BOXES ARE WHERE IT DOES NOT BITE. A recipe's text and a script's program are both
- * IMMUTABLE — a fix is a new script, not an edited one — so the only things that can move a row here
- * are storing one and retiring one, both deliberate acts by the person looking at the box, at most
- * once each, never twice a second behind a poll. And what the ordering says is the thing a reader is
- * actually looking for: the specifications still being written to and the programs still being run,
- * then the ones that have been replaced. A box that interleaved them by age would make "which of
- * these can I still use" a question you answer by reading every row.
+ * WHY THESE BOXES ARE WHERE IT DOES NOT BITE. A recipe's text, a script's program and a thesis's
+ * statement are all IMMUTABLE — a fix is a new script, not an edited one — so nothing a refresh can
+ * bring back about a row already on screen changes where this sort puts it. What CAN move a row is
+ * storing one and putting one down, and both are deliberate acts by the person looking at the box,
+ * at most once each, never twice a second behind a poll.
+ *
+ * A THESIS IS THE ONE WHOSE SUBLABEL MOVES ON ITS OWN, and it still does not move the row: an
+ * assessment lands as a new tag, and `approven` and `insightful` are the same side of this
+ * comparison as `unassessed`. Only an abandonment crosses the boundary, and the schema allows
+ * exactly one of those per thesis, ever.
+ *
+ * And what the ordering says is the thing a reader is actually looking for: the specifications still
+ * being written to, the programs still being run and the claims still being tested, newest at the
+ * top, then the ones that have been put down. A box that interleaved them by age would make "which
+ * of these am I still working with" a question you answer by reading every row.
  *
  * THE SORT IS STABLE — ECMAScript requires `Array.prototype.sort` to be — which is what settles two
  * rows stored in the same millisecond: they keep the order the box already has, which is the merge's
  * own append order, so the tie is broken by the same rule that governs every other box. `meta` is
- * `created_at` on both tables; a card that somehow arrived without one sorts oldest rather than
+ * `created_at` on all three tables; a card that somehow arrived without one sorts oldest rather than
  * crashing the comparison.
  *
  * It hands back the array it was given when that array is already in this order, so a box drawn
@@ -573,7 +596,7 @@ export function ordersByStanding(table: RootTable | null): boolean {
  */
 export function activeFirst(records: readonly RecordCard[]): readonly RecordCard[] {
   const sorted = [...records].sort((a, b) => {
-    const standing = Number(isInactive(a)) - Number(isInactive(b));
+    const standing = Number(isRetired(a)) - Number(isRetired(b));
     return standing !== 0 ? standing : (b.meta ?? 0) - (a.meta ?? 0);
   });
   for (let i = 0; i < sorted.length; i += 1) if (sorted[i] !== records[i]) return sorted;

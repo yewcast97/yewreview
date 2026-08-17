@@ -588,11 +588,47 @@
   cursor: help;
 }
 
+/*
+ * The rows, and the one box in this window that is allowed to hold more than it shows.
+ *
+ * `flex: 0 1` and `min-height: 0` are the whole of how the cap is enforced: the node's height is
+ * inline from the layout and the title bar and the "show more" strip are both `flex: 0 0`, so this
+ * is the only item with any give, and what is left over for it is exactly `MAX_ROWS * ROW_H`. It
+ * shrinks to that and the rows past it are scrolled to rather than drawn below the box's own edge.
+ * Nothing here declares a height — declaring one would be a second copy of an arithmetic
+ * `graphLayout.ts` already did, and the two would agree until one of them was tuned.
+ */
 .graph__rows {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * A box past the cap. The class comes from GraphPanel, which knows the row count the layout capped —
+ * this sheet is never asked to work out whether a list overflows, and the panel never measures
+ * whether it did.
+ *
+ * `overscroll-behavior: contain` stops the chain at this box: the canvas around it swallows the
+ * wheel to zoom with, and a list that handed the event back at its last row would zoom the board out
+ * from under a reader who was still scrolling.
+ *
+ * THE GUTTER IS TEN PIXELS BECAUSE THE LAYOUT SOLVED THE WIRES FOR TEN. `--graph-scrollbar-w` is
+ * `SCROLLBAR_W` published from `graphLayout.ts`, and the same number is subtracted from the start of
+ * every link leaving a row of a scrolling box — the socket those links are drawn to leave from sits
+ * at the right edge of a ROW, and the gutter takes real width out of every row in here. The rule is
+ * bare `::-webkit-`, matching `base.css`: a `scrollbar-width` of its own on this element would make
+ * Blink drop the pseudo-element rules whole and hand back an overlay bar of no width at all.
+ */
+.graph__rows--scrolls {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.graph__rows--scrolls::-webkit-scrollbar {
+  width: var(--graph-scrollbar-w, 10px);
 }
 
 /* -- one row -------------------------------------------------------------------------------------- */
@@ -747,8 +783,8 @@
 }
 
 /*
- * A RETIRED ROW IS THE NAME CROSSED OUT — a recipe nobody writes reports to any more, a script that
- * has been replaced.
+ * A ROW THAT HAS BEEN PUT DOWN IS THE NAME CROSSED OUT — a recipe nobody writes reports to any more,
+ * a script that has been replaced, a thesis whose ledger closed on `abandoned`.
  *
  * A SHAPE RATHER THAN A SHADE, on the precedent the subagents toggle set in `chat.css`: a line
  * through a word survives a reader who cannot tell two greys apart, survives this board's own dust
@@ -757,10 +793,11 @@
  *
  * ON THE LABEL, NOT ON THE ROW. The row also holds the magnifier and the disclosure arrow, and both
  * still work: a retired recipe is a thing to READ — its text is why the reports under it say what
- * they say — so striking the whole row would be drawing it as unusable when only one thing about it
- * has changed. The `line-through` inherits into nothing else, because the label is one span of text.
+ * they say, and an abandoned thesis is why the assessments under it read as they do — so striking
+ * the whole row would be drawing it as unusable when only one thing about it has changed. The
+ * `line-through` inherits into nothing else, because the label is one span of text.
  */
-.graph__row--inactive .graph__label {
+.graph__row--retired .graph__label {
   text-decoration: line-through;
 }
 

@@ -12,10 +12,10 @@
  * INDEPENDENCE: a read of one must not touch the state of another, and a poll where all four said
  * nothing new must return the identical object it was handed.
  *
- * ONE ORDERING IS ALLOWED TO BREAK THAT LAW and it is `activeFirst`, which draws the two column-zero
- * boxes whose rows carry a standing — `recipe` and `script` — active-first. It has its own block
- * below, and so does the question of which boxes it applies to, because an exception nobody wrote
- * the boundaries of becomes a habit.
+ * ONE ORDERING IS ALLOWED TO BREAK THAT LAW and it is `activeFirst`, which draws the three
+ * column-zero boxes whose rows carry a standing — `recipe`, `script` and `thesis` — active-first. It
+ * has its own block below, and so does the question of which boxes it applies to, because an
+ * exception nobody wrote the boundaries of becomes a habit.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -24,6 +24,7 @@ import type { RecordCard, RecordGroup, RecordTable } from "../web/src/lib/record
 import { DEFAULT_GROUP, MAX_GROUP } from "../web/src/lib/records.ts";
 import type { GraphState, RootTable } from "../web/src/state/graph.ts";
 import {
+  ABANDONED,
   INACTIVE,
   ROOT_TABLES,
   activeFirst,
@@ -39,8 +40,8 @@ import {
   fold,
   isBeneath,
   isExpanded,
-  isInactive,
   isReading,
+  isRetired,
   land,
   landRoot,
   mergeExpansion,
@@ -302,18 +303,19 @@ describe("folding takes everything under the row with it", () => {
 });
 
 /**
- * The two boxes that draw what is still in use first, and the one re-sort in a module whose law is
+ * The three boxes that draw what is still in use first, and the one re-sort in a module whose law is
  * that rows never move.
  *
  * `activeFirst` is that exception and the argument for it is written at the function: a recipe's
- * text and a script's program are both immutable, so the only things that can reorder either box are
- * storing one and retiring one — both deliberate acts by the person looking at it, never a poll
- * landing under their cursor. What it buys is that "which of these can I still use" is answered by
- * looking at the top of the box rather than by reading every row.
+ * text, a script's program and a thesis's statement are all immutable, so the only things that can
+ * reorder any of the three boxes are storing a row and putting one down — both deliberate acts by
+ * the person looking at it, never a poll landing under their cursor. What it buys is that "which of
+ * these am I still working with" is answered by looking at the top of the box rather than by reading
+ * every row.
  *
  * WHICH BOXES IT APPLIES TO IS ITS OWN QUESTION, asked of `ordersByStanding` and asserted below over
- * all four roots: a standing is a thing only `recipe` and `script` have, and the other two boxes are
- * governed by the law rather than by the exception.
+ * all four roots: `information_source` is the one root whose sublabel is not a standing at all, and
+ * it is governed by the law rather than by the exception.
  *
  * The block that used to sit here pinned a `playbook` box that FOLDED — a stack of version cards
  * with the operative one face up and a strip that fanned the rest out — and it went with the
@@ -332,28 +334,62 @@ describe("the boxes with a standing draw what is still in use first", () => {
     return { ...card("script", id, id, retired ? INACTIVE : undefined), meta };
   }
 
+  /** A thesis, which the server spells DIFFERENTLY: its sublabel is always the newest tag in its
+   * assessment ledger, so a row still in play carries a word too — `unassessed` until somebody has
+   * read it, `approven` or `insightful` after. Only `abandoned` puts it down. */
+  function thesis(id: string, meta: number, tag = "unassessed"): RecordCard {
+    return { ...card("thesis", id, id, tag), meta };
+  }
+
   const old = recipe("rc1", 1_000);
   const mid = recipe("rc2", 2_000);
   const fresh = recipe("rc3", 3_000);
   const retiredOld = recipe("rc4", 1_500, true);
   const retiredNew = recipe("rc5", 2_500, true);
 
-  test("a retired row is the one the sublabel says so about, and nothing else is", () => {
-    expect(isInactive(retiredOld)).toBe(true);
-    expect(isInactive(old)).toBe(false);
-    // The word on the wire, spelled once. A card labelled anything else is an active row as far as
-    // this box is concerned, which is the honest reading of a sublabel the server did not send.
+  test("a row put down is the one the sublabel says so about, and nothing else is", () => {
+    expect(isRetired(retiredOld)).toBe(true);
+    expect(isRetired(old)).toBe(false);
+    // The two words on the wire, spelled once each. A card labelled anything else is a row still in
+    // play as far as these boxes are concerned, which is the honest reading of a sublabel the server
+    // did not send — and the two words that mean the most on a thesis, `approven` and `insightful`,
+    // are exactly that case.
     expect(INACTIVE).toBe("inactive");
-    expect(isInactive({ ...old, sublabel: "under something" })).toBe(false);
+    expect(ABANDONED).toBe("abandoned");
+    expect(isRetired({ ...old, sublabel: "under something" })).toBe(false);
+    expect(isRetired(thesis("t1", 1_000, "insightful"))).toBe(false);
+    expect(isRetired(thesis("t2", 1_000, "unassessed"))).toBe(false);
+    expect(isRetired(thesis("t3", 1_000, ABANDONED))).toBe(true);
   });
 
-  test("the two tables with a standing are the two boxes that reorder, and no others", () => {
-    // The boundary of the exception, over the whole of column zero. A thesis carries an assessment
-    // in its sublabel and an information source carries its type, and neither is a standing: a box
-    // that sorted on those would be re-sorting rows the merge is holding still on purpose.
-    expect(ROOT_TABLES.filter(ordersByStanding)).toEqual(["recipe", "script"]);
+  test("the three tables with a standing are the three boxes that reorder, and no others", () => {
+    // The boundary of the exception, over the whole of column zero. An information source carries
+    // its TYPE in the sublabel — how far it sits from the numbers — and that is not a standing: a
+    // box that sorted on it would be re-sorting rows the merge is holding still on purpose.
+    expect(ROOT_TABLES.filter(ordersByStanding)).toEqual(["recipe", "thesis", "script"]);
     // And a path that names no root at all — every group box in the graph — is governed by the law.
     expect(ordersByStanding(null)).toBe(false);
+  });
+
+  test("a thesis box is newest-first, with the abandoned ones under it", () => {
+    // The two things a reader asked of this box in one sort: the claim written most recently is the
+    // one at the top, and a claim whose ledger has closed is below every claim still being tested.
+    const closed = thesis("t1", 4_000, ABANDONED);
+    const judged = thesis("t2", 1_000, "approven");
+    const newest = thesis("t3", 3_000);
+    const older = thesis("t4", 2_000, "insightful");
+    expect(ids(activeFirst([closed, judged, newest, older]))).toEqual(["t3", "t4", "t2", "t1"]);
+  });
+
+  test("a new assessment that is not an abandonment moves no thesis", () => {
+    // Why the exception is safe on a table whose sublabel a poll CAN change: the tags a thesis
+    // collects while it is being worked on are all on the same side of the comparison, so the row
+    // the reader is pointing at stays where it is. Crossing the boundary happens once, ever — the
+    // schema refuses to revive an abandoned thesis.
+    const before = [thesis("t3", 3_000), thesis("t2", 2_000), thesis("t1", 1_000, "approven")];
+    const after = [thesis("t3", 3_000, "insightful"), before[1]!, before[2]!];
+    expect(ids(activeFirst(before))).toEqual(["t3", "t2", "t1"]);
+    expect(ids(activeFirst(after))).toEqual(["t3", "t2", "t1"]);
   });
 
   test("the active rows come first, whatever order the box holds them in", () => {
@@ -447,6 +483,22 @@ describe("the boxes with a standing draw what is still in use first", () => {
     });
     expect(rootIds(state, "script")).toEqual(["sk2", "sk1"]);
     expect(ids(activeFirst(rootOf(state, "script").box!.records))).toEqual(["sk1", "sk2"]);
+  });
+
+  test("abandoning a thesis does the same to the thesis box", () => {
+    // The third of the three, through the merge rather than through the sort alone: an assessment
+    // tagged `abandoned` lands as a sublabel changing on a card already on screen, the held order
+    // does not move, and the drawn order puts the closed claim under the ones still being tested.
+    const kept = thesis("t1", 1_000);
+    const doomed = thesis("t2", 2_000);
+    let state = landRoot(createGraphState(), "thesis", { records: [doomed, kept], hasMore: false });
+    expect(ids(activeFirst(rootOf(state, "thesis").box!.records))).toEqual(["t2", "t1"]);
+    state = mergeRoot(state, "thesis", {
+      records: [{ ...doomed, sublabel: ABANDONED }, kept],
+      hasMore: false,
+    });
+    expect(rootIds(state, "thesis")).toEqual(["t2", "t1"]);
+    expect(ids(activeFirst(rootOf(state, "thesis").box!.records))).toEqual(["t1", "t2"]);
   });
 });
 
