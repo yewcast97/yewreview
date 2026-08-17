@@ -1,0 +1,155 @@
+/*
+ * The word that can be changed, and the short list it is chosen from. Owned by Picker.tsx; see the
+ * stylesheet convention at the top of base.css.
+ *
+ * There is no `.picker--*` modifier here and there should not be one. What differs between two of
+ * these — how wide the closed control may grow before it is cut short — is a fact about the STRIP
+ * holding it rather than about the picker, so it is written where that strip is dressed
+ * (`chat.css`), through the class the caller puts on the root. A menu of models and a menu of effort
+ * levels are otherwise the same object and are drawn by the same rules.
+ */
+
+.picker {
+  display: inline-flex;
+  /* Shrinks with the caption around it, so the trigger inside can be the thing that truncates. */
+  min-width: 0;
+}
+
+/*
+ * The closed control: a word in a line of prose, with a pointer over it.
+ *
+ * IT INHERITS ITS FACE AND ITS INK rather than naming either, which is the whole reason this reads
+ * as a caption instead of as a form. A picker is dropped into a line that has already decided what
+ * it is set in — the composer's strip is 12px mono in muted chalk — and a control that restated any
+ * of that would be a second opinion about a line it is only one word of. What is left saying it is a
+ * control at all is the CURSOR and the hover, which is the same bargain the graph's divider makes:
+ * the affordance is the pointer, not a frame.
+ *
+ * There is no disclosure triangle, and one is not put back. The arrow a `<select>` draws is the
+ * platform announcing a platform menu; what opens here is a sheet of this window's own, and a mark
+ * beside a name in a caption reads as decoration rather than as a hint.
+ */
+.picker__trigger {
+  display: block;
+  /* A flex item of the root above, so this is what lets it shrink past the width of the name it is
+     showing — without it `min-width: auto` holds the caption open at a model identifier's full
+     length and the strip pushes the dock apart instead of cutting the name short. */
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  /* A model identifier is as long as whoever named it made it, and the caption is one line. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__trigger:hover:not(:disabled) {
+  color: var(--text-secondary);
+}
+
+/* Dimmed and silent is a puzzle; the `title` the caller passes is what says why, and the cursor is
+   what stops the reader pressing it to find out. */
+.picker__trigger:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/*
+ * The sheet.
+ *
+ * `fixed`, NOT `absolute`, and `Picker.tsx` argues it: these open inside the conversation dock,
+ * whose body is a grid that clips its overflow, so an absolutely positioned list is cut off at the
+ * composer's edge — which for a list that opens upward means cut off entirely. The `top`/`left` here
+ * are a starting point only; the component measures and writes the real pair inline, on the same
+ * bargain `InfoDot` and the dock itself both make with their rectangles.
+ *
+ * NO SHADOW. This is chalk-dust fill with a chalk hairline round it, the same material as the status
+ * pill in the corner, and on this board only paper throws a shadow — `ChatDock.css` states the law
+ * where the dock refuses one for itself. What lifts the sheet off the transcript is that nothing in
+ * this window is transparent: the fill is solid, so what is under it is simply not there.
+ *
+ * `--z-popover` orders it within the dock and no further, because the dock carries a z-index of its
+ * own and is therefore a stacking context. That is the right answer anyway, and it is the one
+ * `InfoDot.css` reaches from the other side of the window: a note the reader dragged over the
+ * conversation stays over it, menu and all.
+ */
+.picker .picker__sheet {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  width: max-content;
+  max-width: min(280px, calc(100vw - var(--space-5)));
+  /* Roughly ten rows. The lists behind these are five levels and however many models an
+     installation's CLI can reach, and a menu that ran the height of the window would be a list
+     nobody could hold in their head anyway. */
+  max-height: min(15rem, 60vh);
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--chalk-dim);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  /* The strip this hangs off is muted chalk, because a caption is quiet. An open list is not a
+     caption — it is a thing being read, one row at a time — so the ink steps up to the full stick
+     and the rows are told apart by their ground instead. */
+  color: var(--text);
+  list-style: none;
+  overflow-y: auto;
+  visibility: hidden;
+}
+
+/* ONE SELECTOR, BECAUSE `open` IS ONE TRUTH — the same arrangement the window's two popovers keep,
+   and for the reason `InfoDot.css` sets out at length: a `:hover` or `:focus-within` rule revealing
+   this behind the component's back would leave a list on screen over a control announcing
+   `aria-expanded="false"`, with the Escape that would have closed it already spent. */
+.picker .picker__sheet[data-open] {
+  visibility: visible;
+}
+
+/*
+ * A row.
+ *
+ * THE MARK SITS IN A COLUMN OF ITS OWN, and that fixed cell is the point of the grid: a tick drawn
+ * inline before the current row would push its label a character to the right of every other one,
+ * and a list of model names that do not start on the same pixel is a list that has to be read
+ * rather than scanned. The cell is there in every row and holds nothing in most of them.
+ */
+.picker__option {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: var(--space-1);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/*
+ * Where the keyboard and the pointer are, which in this widget are one place: the component moves
+ * the same `active` row from an arrow key and from the pointer entering, so this rule can be the
+ * only one that draws a highlight. A `:hover` rule beside it would be a second highlight the state
+ * knows nothing about, and the two would disagree the moment somebody arrowed down a list their
+ * cursor was still resting on.
+ */
+.picker__option[data-active] {
+  background: var(--bg-hover);
+}
+
+.picker__mark {
+  /* The tick is furniture rather than a word: it is the same mark on whichever row is current, and
+     what it says is said again by `aria-selected`. */
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* A model identifier can be longer than the sheet is wide, and in a MENU it wraps rather than being
+   cut short: the closed control may say a name in part, because the reader picked it and knows what
+   it is, but a row nobody has chosen yet has to be readable to the end. */
+.picker__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

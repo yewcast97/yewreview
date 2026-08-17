@@ -1,0 +1,962 @@
+/*
+ * The node graph. Owned by GraphPanel.tsx and imported by nothing else; see the stylesheet
+ * convention at the top of base.css.
+ *
+ * THIS SHEET IS HALF OF A CONTRACT. `lib/graphLayout.ts` computes every box's height as arithmetic
+ * over constants — a title bar, some rows, maybe a footer — and never measures the DOM. That is what
+ * makes the layout testable and what stops the graph from re-packing itself a frame after it is
+ * painted, under the cursor of somebody about to drag a row into the composer. The price is that
+ * the drawing must be exactly the size the arithmetic assumed: A ROW IS ONE LINE, FIXED HEIGHT, AND
+ * NEVER WRAPS. Every label here truncates with an ellipsis rather than growing, every icon button is
+ * smaller than the row it sits in, and no rule below is allowed to add a line to a box. The numbers
+ * themselves are not written here — GraphPanel publishes them onto `.graph__surface` as custom
+ * properties, so there is one copy of each rather than two that agree until one is tuned.
+ *
+ * THE PALETTE IS A GRAPH EDITOR'S, and the obvious alternative — one panel palette, hairlines rather
+ * than shadows, and deliberately no colour per table — is half right. The half that holds:
+ * thirteen hues would be a legend to memorise, and the table's name is written on every
+ * box already. The half that is wrong: a colour per FAMILY says the one thing a name cannot, which
+ * is KIND, and `lib/family.ts` folds the tables into five — a recipe, a thesis and
+ * what it is about, a source and the citations of it, a script and its runs, and everything a
+ * generation made. Five is few enough to learn by looking, and the legend is the four root boxes
+ * themselves: they stand in column zero wearing the colours their descendants inherit, so nothing has
+ * to explain the scheme in words.
+ *
+ * A family arrives as ONE attribute — `data-family`, written by GraphPanel onto a node and onto the
+ * links that arrive at it — and the rules below turn it into two custom properties that everything
+ * else reads. That is what puts one hue in three places at once (the link, the dot it lands on, the
+ * strip above it) without three selectors per family per mark. A box the layout has no table for — a
+ * note, a refusal — draws grey, because it is about a row rather than about a kind of thing.
+ *
+ * AND THE BOARD IS SQUARED OFF, in two scales of faint chalk that travel under a drag and grow under
+ * a zoom — which is what gives an empty stretch of board any parallax at all. A blackboard is not
+ * graph paper, which is an argument against ruling it; a board with nothing on it is also not a
+ * plane, which is the stronger argument for: with no ruling, a pan across empty slate moves
+ * nothing on screen and reads as a window that has stopped responding. The squares are the reference
+ * points the boxes cannot be where there are no boxes.
+ *
+ * IT IS NOT DRAWN ON THE TRANSFORMED ELEMENT. A background there is clipped to the layout's own
+ * extent, so the ruling would stop in mid-air wherever the boxes do. `.graph__grid` is a layer over
+ * the whole canvas whose `background-position` is the pan — same parallax, no edge to explain.
+ *
+ * NOTHING IS NEEDED FOR A NARROW WINDOW. The board is the whole shell at every width — there is no
+ * second column to stack against it — and the canvas is navigated rather than scrolled, so a
+ * smaller window costs the graph nothing but a pan.
+ *
+ * EVERY RULE THAT ARGUES WITH A PRIMITIVE IS WRITTEN WITH TWO CLASSES — `.btn.graph__more`, not
+ * `.graph__more`. Which of this sheet and base.css the bundler emits first is the bundler's business
+ * and not the import order's (see the warning at base.css:202-211), so at equal specificity a
+ * single-class rule is a coin toss that is re-tossed on every build: the footer would come out 30px
+ * tall inside a box the layout budgeted 26 for, and only on some builds. The extra class is the fix.
+ */
+
+/* -- the board ------------------------------------------------------------------------------------ */
+
+/*
+ * The section the canvas fills. Nothing of `.panel` applies here: no header row, no card border —
+ * the board IS the ground, and what a header would hold is written on it below.
+ */
+.board {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * The board's title, written in the top-left corner: a name, a chalk rule under it, and how the
+ * room works. Inert — `aria-hidden` in the component, no pointer events here — because it is writing
+ * on the board, not a control; the pans land on the canvas it is drawn inside.
+ *
+ * IT IS UNDER EVERY BOX AND WIRE, and there is no `z-index` anywhere in this board to say so. The
+ * component puts it INSIDE the canvas and BEFORE `.graph__surface`, so the painting order falls out
+ * of the source: the canvas's own fill is the slate, the ruling paints on the slate, this paints on
+ * the ruling, and every wire and box paints on this. A node panned over the words covers them
+ * outright — nothing here is transparent — which is what writing underneath the work is supposed to
+ * do. A `z-index: 3` on this element would prevent exactly that, holding the instructions ON TOP of
+ * the boxes. The only thing below it is the grid, which is right: a board is ruled before it is
+ * written on.
+ *
+ * It is absolutely positioned against the CANVAS rather than the board, which is the same rectangle:
+ * the canvas is `inset: 0` of it. And it is outside the SURFACE, so it does not pan or zoom.
+ */
+.board__title {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  pointer-events: none;
+}
+
+/* A word this window chose, so the sans — and a size step down with it: 2rem was tuned for a
+   handwriting face, whose loose fitting needed the room to read as writing, and a geometric sans at
+   that size shouts across the whole board. */
+.board__title-word {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  rotate: -1deg;
+  line-height: 1;
+}
+
+/* Drawn, not ruled: the chalkline filter is what keeps a 3px bar from reading as a UI divider. */
+.board__title-rule {
+  width: 150px;
+  height: 3px;
+  margin: 5px 0 6px 2px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  rotate: -0.8deg;
+  filter: url(#chalkline);
+}
+
+/*
+ * The gestures: instructions this window wrote, so the sans.
+ *
+ * NO CHALK FILTER ANYWHERE NEAR THESE GLYPHS. The rule above wobbles because it is a text-free bar;
+ * a displacement filter on words smears them, which is the law the whole `.chalk-frame` construction
+ * exists to obey. What makes these read as written on the board rather than printed on it is the
+ * tilt, which is now the whole of it — the face used to carry half.
+ *
+ * The tilt alternates between two small angles rather than repeating one, so the lines do not stack
+ * into a wedge — a single rotation applied down a list reads as a skewed block, which is a layout
+ * mistake rather than a hand.
+ */
+.board__howto {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.board__howto-line {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  rotate: -0.6deg;
+}
+
+.board__howto-line:nth-child(even) {
+  rotate: -0.2deg;
+}
+
+/* The board's tools, floated to its top-right corner. Above every box without saying
+   so: they are a positioned sibling drawn AFTER the canvas, so source order alone keeps them on top
+   and clickable while a node pans underneath. Same inset as the title's, on the other edge. */
+.board__tools {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* -- the canvas ----------------------------------------------------------------------------------- */
+
+/*
+ * The viewport, and it does NOT scroll: `overflow: hidden`, pan only.
+ *
+ * This is a choice between two navigation models, and having both is worse than having either. A
+ * canvas that scrolled AND panned would double-move on every wheel event — the surface translating
+ * under the reader's zoom while the scroller ran the other way — and a scrollbar is a promise that
+ * the content has a fixed extent, which a canvas the reader can drag anywhere does not. So the wheel
+ * belongs to the zoom (GraphPanel attaches it natively, non-passively, and calls preventDefault),
+ * the drag belongs to the pan, and there are no bars.
+ *
+ * `touch-action: none` for the same reason the title bar has it: without it the browser claims a
+ * touch drag for scrolling a scroller that is not there, and the pointer events stop arriving
+ * mid-gesture. The cursor is the only thing telling the reader the empty space is a control.
+ */
+.graph__canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /*
+   * THE SLATE. Painted on the canvas — the element that does NOT transform — because it is the
+   * physical surface the reader pans OVER, not a thing drawn on it: dust clouds that slid with the
+   * pan would say the board is moving, and this board does not move. Five layers over the solid
+   * board colour, every one of them deterministic paint on an opaque self (the material law's one
+   * gradient allowance): three soft off-white washes where chalk has been wiped, a vignette pulling
+   * the corners down, and a tiling of fractal noise for the slate's tooth.
+   *
+   * THERE ARE NO REBATE SHADOWS, because there is no frame to cast them. Two inset blacks — the dark
+   * line where slate meets wood, and the lip of a surround above it — would be a shadow thrown by
+   * nothing: the board runs to the glass, and on a board with no border a rebate reads as a vignette
+   * applied twice. The corner-pulling vignette in the layer stack above is the whole of the edge
+   * treatment.
+   */
+  background-color: var(--board);
+  background-image:
+    radial-gradient(420px 260px at 18% 30%, rgba(232, 228, 215, 0.05), transparent 70%),
+    radial-gradient(520px 320px at 75% 65%, rgba(232, 228, 215, 0.045), transparent 70%),
+    radial-gradient(340px 220px at 55% 18%, rgba(232, 228, 215, 0.035), transparent 70%),
+    radial-gradient(140% 120% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(8, 10, 9, 0.3) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Held rather than clicked through. A class rather than `:active`, because the pan keeps the pointer
+   captured past the edge of the canvas and `:active` does not always follow it there. */
+.graph__canvas--panning {
+  cursor: grabbing;
+}
+
+/*
+ * The coordinate space. Width and height come from the layout as inline styles and cover every
+ * dragged box; the `transform` above them is the reader's own pan and zoom, written by GraphPanel
+ * from `lib/graphView.ts`.
+ *
+ * `transform-origin: 0 0` is what makes the zoom arithmetic in that module true. Scaling about the
+ * default centre would put the fixed point of a zoom in the middle of the panel rather than under
+ * the cursor, and every solved translation here would be off by half the viewport.
+ *
+ * NOTHING IS PAINTED HERE, INCLUDING THE GRID, and that is worth stating because the grid is the
+ * obvious thing to put on this element and it is the wrong element for it. A background on the
+ * transformed box is transformed with it, which is exactly the parallax the ruling needs — but it is
+ * also CLIPPED to that box, and this box is only as big as the layout. Four root tables in a column
+ * is a surface a third of the window wide, so the ruling would stop in mid-air two-thirds of the way
+ * across the board with nothing to explain the edge. Tuning the tokens faint enough for that seam not
+ * to be noticed is a way of saying it is noticed. `.graph__grid` below is the same ruling with the
+ * same parallax and no extent at all.
+ *
+ * `will-change` keeps the transform composited so the filtered chalk layers on the boxes are re-used
+ * rather than re-rendered per frame of a pan.
+ */
+.graph__surface {
+  position: relative;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/*
+ * THE RULING, and it covers the board rather than the drawing.
+ *
+ * It fills the CANVAS — the viewport, which never moves and never runs out — and gets its parallax
+ * from `background-position` instead of from a transform: GraphPanel writes the pan's own `tx, ty`
+ * into the position and the zoom's scale into the size, so the squares travel and grow exactly as the
+ * boxes do while the layer they are drawn on stays still. A background has no edges to clip against,
+ * so panning to an empty quarter of the board finds ruled slate there rather than a seam. That is the
+ * one thing a grid on the transformed element cannot do, and the reason this is a layer of its own
+ * instead of a line in the rule above.
+ *
+ * FIRST IN THE CANVAS, so the board's own writing and every box lands on top of it: ruling goes under
+ * writing. Inert to the pointer, because the pans belong to the canvas underneath.
+ *
+ * Four layers, because a two-scale grid is two pairs of lines and each pair is one gradient per axis.
+ * The MAJOR lines are listed first: the first background layer paints on top, and where a coarse line
+ * crosses a fine one it is the coarser of the two that should survive the intersection. The spacings
+ * are NOT here — they are inline, because they are the only numbers on this element that the zoom
+ * changes, and a copy in this file would be a second answer to what 24 pixels means at 2.5×.
+ */
+.graph__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-minor) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-minor) 1px, transparent 1px);
+}
+
+/*
+ * Zoomed far enough out that the fine ruling is no longer lines.
+ *
+ * At a quarter scale the 24px squares are six pixels apart, which does not read as a grid — it
+ * reads as a lighter shade of board, and a hairline that cannot be resolved is a texture nobody
+ * asked for. The fine pair is dropped and the coarse pair carries the plane on its own. The two
+ * sizes GraphPanel writes for the missing layers are ignored, per the cascade's own rule that
+ * the layer count is whatever `background-image` says it is.
+ */
+.graph__grid--coarse {
+  background-image:
+    linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px);
+}
+
+/* -- the links ------------------------------------------------------------------------------------ */
+
+/*
+ * One svg for all of them, under every box and inert. Drawn first in the DOM rather than with a
+ * z-index: the boxes are position:absolute siblings that follow it, so painting order already puts
+ * them on top, and a stacking context here would be a second answer to a question source order has
+ * already settled.
+ */
+.graph__edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/*
+ * A wire is TWO STROKES OF ONE PATH: a wide faint pass under a narrow bright one, both pulled
+ * through the chalkline filter — which is how a chalk line actually lands on slate, dust around a
+ * core. The group in the svg carries the family; these two rules deal it out as `--edge-hue` and
+ * `--edge-faint`, so the pair can never disagree about what family they are.
+ */
+.graph__edge {
+  fill: none;
+  stroke: var(--edge-hue, var(--border-control));
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  filter: url(#chalkline);
+}
+
+.graph__edge-under {
+  fill: none;
+  stroke: var(--edge-faint, var(--bg-active));
+  stroke-width: 7;
+  stroke-linecap: round;
+  filter: url(#chalkline);
+}
+
+/*
+ * A LINK WEARS THE FAMILY OF THE BOX IT ARRIVES AT, not of the row it leaves.
+ *
+ * The alternative — colour by origin — makes every wire out of one box the same colour, which is
+ * precisely the case where telling them apart matters: a thesis row with three groups hanging off it
+ * sends three links into three different kinds of thing, and reading which is which is the reason to
+ * follow a wire at all. Taking the destination's family instead means the link, the input dot it ends
+ * on and the strip above that dot are one hue, so a wire is read as "this goes to a report" from any
+ * point along its length. It also costs the layout nothing: an edge is already keyed by the path of
+ * the box it lands in, so GraphPanel has the family in hand without a second index.
+ *
+ * These cannot use `--node-hue`: the links live in one svg that is a SIBLING of the boxes, so there
+ * is no node above a path to inherit anything from. They name the family tokens directly, which is
+ * also why they stay in this section rather than moving down with the node rules. The `-faint`
+ * tokens are the same hues drowned in the board — the dust pass must whisper the family, not shout
+ * it twice.
+ */
+.graph__edgegroup[data-family="thesis"] {
+  --edge-hue: var(--fam-thesis);
+  --edge-faint: var(--fam-thesis-faint, var(--bg-active));
+}
+
+.graph__edgegroup[data-family="source"] {
+  --edge-hue: var(--fam-source);
+  --edge-faint: var(--fam-source-faint, var(--bg-active));
+}
+
+.graph__edgegroup[data-family="script"] {
+  --edge-hue: var(--fam-script);
+  --edge-faint: var(--fam-script-faint, var(--bg-active));
+}
+
+.graph__edgegroup[data-family="derived"] {
+  --edge-hue: var(--fam-derived);
+  --edge-faint: var(--fam-derived-faint, var(--bg-active));
+}
+
+/* -- one node ------------------------------------------------------------------------------------- */
+
+/*
+ * A box is placed by `transform` rather than by `top`/`left`. The reader drags these, and a
+ * transform is composited: a drag that moved `left` would relayout the surface on every pointer
+ * event, with every other box in it.
+ *
+ * Its height is inline, from the layout, and `overflow: hidden` is the guarantee that nothing inside
+ * can out-argue it. If a row ever did grow, it would be clipped rather than silently pushing this
+ * box's rows away from the links that arrive at them.
+ *
+ * THE BOX IS DRAWN BY ITS FRAME LAYER, NOT BY ITS OWN BORDER. GraphNode's first child is a
+ * `.chalk-frame` (see `styles/chalk.css`): an absolute-inset span carrying the 2.5px chalk border,
+ * the solid dust fill and the displacement filter that makes the rectangle read as hand-drawn. The
+ * border had to leave this element for two reasons that both bind: a border here would be inside
+ * the height arithmetic the layout solved (a chalk-thick one would eat the rows' budget), and the
+ * wobble filter must never sit on an ancestor of the text. The node itself keeps the clip and the
+ * placement — and NO shadow: chalk has no thickness to throw one.
+ *
+ * The fill on the frame is SOLID and that is load-bearing: the wires pass under these boxes, and a
+ * hollow box would show every wire through its own rows.
+ */
+.graph__node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--graph-node-w);
+  border-radius: 9px;
+  overflow: hidden;
+  transition: opacity var(--duration) var(--ease);
+  /*
+   * HOW FAR A FILL INSIDE THIS BOX HAS TO STAY CLEAR OF THE LINE THE BOX IS DRAWN WITH, and it is
+   * one number because there is one frame: the layer sits 2px in (the rule below), strokes 2.5px of
+   * chalk, and is pulled through a displacement filter whose scale is 3 — which moves that stroke by
+   * up to a pixel and a half either way. Six is the sum. Everything that paints a rectangle in here
+   * — a row's highlight, the "show more" strip, a refusal's panel — is inset by it, because a fill
+   * that reached the box's own edge would paint over the chalk line and the box would lose its edge
+   * exactly where the reader is pointing. Rows themselves are NOT inset: the socket is cut into the
+   * box's right edge and every wire in the graph is anchored to it.
+   */
+  --node-clear: 6px;
+}
+
+/* Everything except the frame paints above it: the frame is positioned, and a positioned sibling
+   would otherwise cover normal-flow rows. `:not` keeps the frame itself out of the rule at a
+   specificity no bundler ordering can re-toss. */
+.graph__node > :not(.chalk-frame) {
+  position: relative;
+}
+
+/* Inset by the displacement's reach: the box clips its overflow (the height contract's guarantee),
+   and a frame at the very edge would have its wobble sliced flat where it strayed outside. The
+   port dots sit ON the drawn line as a result, which is where a socket belongs. */
+.graph__node > .chalk-frame {
+  inset: 2px;
+}
+
+/*
+ * -- the five families ----------------------------------------------------------------------------
+ *
+ * One attribute in, two custom properties out. Everything coloured inside a box — the title strip,
+ * the input dot, the socket a link leaves from — reads `--node-hue` or `--node-strip` and never a
+ * `--fam-*` token, so a box gets its family in one place and the marks inside it cannot disagree
+ * about which family that was.
+ *
+ * `neutral` is deliberately absent. A box with no family declares no property, the marks fall back to
+ * the greys in their own `var()` defaults, and there is nothing here to keep in step with a sixth
+ * name — see the argument in `lib/family.ts` about why the absence of a family is not a family.
+ */
+.graph__node[data-family="recipe"] {
+  --node-hue: var(--fam-recipe);
+  --node-strip: var(--fam-recipe-strip);
+}
+
+.graph__node[data-family="thesis"] {
+  --node-hue: var(--fam-thesis);
+  --node-strip: var(--fam-thesis-strip);
+}
+
+.graph__node[data-family="source"] {
+  --node-hue: var(--fam-source);
+  --node-strip: var(--fam-source-strip);
+}
+
+.graph__node[data-family="script"] {
+  --node-hue: var(--fam-script);
+  --node-strip: var(--fam-script-strip);
+}
+
+.graph__node[data-family="derived"] {
+  --node-hue: var(--fam-derived);
+  --node-strip: var(--fam-derived-strip);
+}
+
+/*
+ * The title bar, which is the whole drag handle. `touch-action: none` is what makes it one on a
+ * touch screen: without it the browser claims the gesture for scrolling the canvas and the pointer
+ * events stop arriving mid-drag. `user-select: none` keeps a drag from painting a text selection
+ * across every box the pointer crosses.
+ *
+ * THE STRIP HAS NO FILL — a filled band over a chalk box reads as tape, not chalk — so the
+ * family is carried by the LINE: the title's underline is ruled in `--node-hue`, the same hue the
+ * port dot and the arriving wire wear, so a family is legible from across the canvas as the
+ * one coloured stroke a box has. The title is a table's name, which is this window's word for a kind
+ * of thing rather than anything stored, so it is the sans — at 16px and 600, which is a primary
+ * label said by weight rather than by size. The 20px it was set at bought a handwriting face the
+ * room to read as writing; a sans at 20px in a 260px bar is simply a large word. `TITLE_H` in
+ * graphLayout.ts is unchanged and now has slack in it — that constant is a BUDGET, and the argument
+ * for leaving it alone is written at the constant itself.
+ *
+ * THE LEADING IS LOAD-BEARING. `.graph__node-name` hides its overflow so a long name can truncate,
+ * and a line box set to 1.0 hides with it whatever the face draws below the baseline. This one draws
+ * its underscore low enough to lose: at 1.0 a table called `information_source` reads as two words
+ * with a gap where the character was. The bar's height is fixed and its content vertically centred,
+ * so the room the glyphs actually need is room the layout was already holding.
+ *
+ * `position: relative` is not decoration: the input port below hangs off this strip, and the row it
+ * has to be centred on is this one.
+ */
+.graph__node-title {
+  position: relative;
+  display: flex;
+  flex: 0 0 var(--graph-title-h);
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: var(--graph-title-h);
+  /* The LEFT inset is the rows' — a box that indented its title four pixels short of every row under
+     it would have a ragged left edge down its whole height. The right is 8, which is what puts the
+     `+`'s centre 18px from the box edge: the same column the rows' arrows stand in, 9px of margin
+     plus half of an 18px control. The stale mark sits on the same line and is measured against the
+     same number. */
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 2px solid var(--node-hue, var(--chalk-dim));
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.graph__node-title:active {
+  cursor: grabbing;
+}
+
+/* A box titled with a record's LABEL rather than with a table's name — see `NodeTitle`. A name out
+   of the database is an identifier somebody matches against a row, so it takes the mono where the
+   table's name above takes the sans, and the size steps down with it: the mono runs perceptibly
+   wider than the sans at equal size, and a label has to survive in a 260px bar that also holds a
+   stale mark and a `+`. */
+.graph__node-title.graph__node-title--data {
+  font-family: var(--font);
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/*
+ * The input port: where the link from the row that opened this box arrives.
+ *
+ * ONLY ON A BOX THAT HAS ONE. `--child` is written by GraphPanel on every box that is not a root, and
+ * a root box is reached by nothing — a dot on it would be a socket with no wire, which in a graph
+ * editor reads as a connection somebody forgot to make.
+ *
+ * Flush INSIDE the left edge rather than straddling it, for the same reason the output dot at the
+ * other end is: the node clips its own overflow, and half a dot is worse than none. A pseudo-element
+ * rather than a real one because it must cost the layout nothing — see the height contract at the top
+ * of this file. It takes `--node-hue`, which is the family of THIS box, and the link arriving is
+ * painted from the same family for the same reason: one wire, one colour, end to end.
+ */
+.graph__node--child .graph__node-title::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--node-hue, var(--border-control));
+  transform: translateY(-50%);
+}
+
+/* Takes the width the title bar has spare, which is what pushes the marks after it — the stale
+   warning, the `+` — against the box's right edge. It still truncates: `min-width: 0` is what lets a
+   flex item shrink below its content, and the ellipsis is what a row that must not wrap does with
+   the remainder. */
+.graph__node-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The `+` on the boxes that offer a way in — all four roots, and the report box that asks for the
+ * next report. Every one of them sends a
+ * sentence to the conversation rather than opening anything here, which is not this stylesheet's
+ * business: it is the same offer to add something in this place, whichever side of the socket ends
+ * up doing the writing.
+ *
+ * SMALLER THAN THE STRIP IT SITS IN, at 20px inside a 28px title bar, for the reason at the top of
+ * this file: `layoutGraph` budgeted exactly `--graph-title-h` for that strip and a control taller
+ * than it would push the box's own rows away from the links that arrive at them. Two classes for the
+ * same reason `.graph__more` has two — at equal specificity this would lose to `.btn--icon`'s own
+ * 28px on source order, and which sheet the bundler emits first is not the import order's business.
+ *
+ * Always visible, like every control on the rows below it. There are a couple of these on a canvas
+ * and they are how a reader with an empty database starts at all; a way in that appears only once
+ * the pointer has swept over it is a way in nobody finds.
+ */
+/*
+ * AND IT SITS IN THE SAME COLUMN AS THE ROWS' ARROWS, which is what the missing negative margin
+ * buys. The disclosure on a row is 18px wide with 9px of margin after it, so its centre lands 18px
+ * from the box's right edge; this button used to pull itself 4px further out with a negative margin,
+ * which put the `+` at 14px and left the title bar's one control a few pixels adrift of the column
+ * of arrows under it. Read down the box, that is the only mark not in line with the others.
+ */
+.btn--icon.graph__add {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  font-size: var(--text-sm);
+}
+
+/* A read that failed on a node still holding rows. The rows are real and stay drawn; this says they
+   may be a moment old, and the sentence itself is on the `title`. It cannot become a line of its own
+   without breaking the height contract at the top of this file. */
+.graph__stale {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--warn);
+  cursor: help;
+}
+
+.graph__rows {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* -- one row -------------------------------------------------------------------------------------- */
+
+/*
+ * EXACTLY `--graph-row-h`, and the `flex: 0 0` says so twice so no leftover space in the box can
+ * stretch it. Everything about this row is subordinate to that number: it is what the packing added
+ * up, and it is where the link to this row's own children departs from.
+ */
+.graph__row {
+  position: relative;
+  display: flex;
+  flex: 0 0 var(--graph-row-h);
+  align-items: center;
+  min-width: 0;
+  height: var(--graph-row-h);
+}
+
+/*
+ * A ROW'S HIGHLIGHT IS A LAYER, AND IT STOPS SHORT OF THE FRAME — the same bargain the frame itself
+ * makes one level up, for the opposite reason.
+ *
+ * The row runs the full width of the box and has to: the output socket is cut into the box's own
+ * right edge at `right: 0`, and that dot is where `layoutGraph` starts every wire leaving this row.
+ * So a background on the ROW is a rectangle the width of the box, painted over the chalk line down
+ * each side of it — and the box loses its edge wherever the pointer happens to be. Insetting the row
+ * would take the socket, the label's left inset and the arrow's column with it; insetting the PAINT
+ * costs the geometry nothing.
+ *
+ * ONE LAYER FOR ALL THREE MARKS. The hover wash, the open row's hold and the selection's outline are
+ * all drawn on this pseudo-element, so there is one rectangle to keep inside the frame rather than
+ * three, and a row that is open AND selected AND under the pointer still has exactly one edge.
+ *
+ * IT PAINTS ABOVE THE ROW'S CONTENT UNLESS THE CONTENT IS RAISED, which is what the rule under this
+ * one is for: a positioned layer is painted after the in-flow boxes beside it, so the controls take
+ * `position: relative` the way `.graph__node > :not(.chalk-frame)` raises a box's rows above its
+ * frame. The socket's own `::after` comes later in tree order and needs nothing.
+ */
+.graph__row::before {
+  content: "";
+  position: absolute;
+  inset: 0 var(--node-clear);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.graph__row > * {
+  position: relative;
+}
+
+/*
+ * AND AT THE FOOT OF THE BOX IT STOPS SHORT DOWNWARD TOO. A box's height is `TITLE_H + rows * ROW_H`
+ * with nothing spare (`graphLayout.ts`), so the last row's bottom edge IS the box's bottom edge: a
+ * full-height wash there wipes out the bottom of the frame and both of its corners. `:last-child` on
+ * the rows themselves is not enough — where a "show more" strip follows, it is the strip that meets
+ * the frame and the rows never do, which is why the container is asked as well.
+ */
+.graph__rows:last-child > .graph__row:last-child::before {
+  bottom: var(--node-clear);
+}
+
+.graph__row:hover::before {
+  background: var(--bg-hover);
+}
+
+/* An open row keeps its highlight while the pointer is elsewhere: it is the reason the boxes to the
+   right exist, and losing track of which row produced them is losing the graph. */
+.graph__row--expanded::before {
+  background: var(--bg-active);
+}
+
+/*
+ * The socket, flush against the box's right edge and centred on the row — which is precisely where
+ * `layoutGraph` starts this row's bezier, so the link reads as leaving the row rather than as
+ * passing near it. Inside the edge rather than straddling it, because the node clips its own
+ * overflow and half a dot is worse than none.
+ *
+ * It wears its OWN box's family, unlike the wires leaving it, which wear their destinations'. That is
+ * not an inconsistency: an output socket belongs to the row it is cut into, and the row belongs to
+ * this box. The ring is `--bg-panel` rather than a border, so the dot keeps its 7px and the ring is
+ * paint on top of the strip below it — a border would have had to come out of the dot to preserve the
+ * geometry the bezier was solved against.
+ */
+.graph__row--expanded::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--node-hue, var(--border-control));
+  /* A zero-blur ring is opaque paint, not a glow — the one box-shadow shape the material law
+     leaves chalk. */
+  box-shadow: 0 0 0 2px var(--bg-panel);
+  transform: translateY(-50%);
+}
+
+/*
+ * Where the last click landed. Drawn on the row's own paint layer, so it lands inside the frame with
+ * the wash it collides with: this row can perfectly well be the selection and expanded at once.
+ *
+ * THERE IS NO SECOND MARK — no bar down the left of "the recipe this window is about", because
+ * there is no such row. The conversation is global: it belongs to the agent
+ * rather than to a recipe, so no row in this graph is the one the chat is having, and a bar
+ * claiming otherwise would be pointing at the last recipe somebody happened to click.
+ */
+.graph__row--selected::before {
+  /* The yellow stick circling a row: half a pixel thicker than a hairline because chalk
+     never draws that thin. */
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+}
+
+/*
+ * The wide control: one line, ellipsised, with the stamp holding its own width at the end.
+ *
+ * `user-select: none` because a double click here MEANS something — it opens the record in the right
+ * column — and the browser's default answer to a double click is to select the word under it. Both
+ * would happen, and the reader would open a record and be handed a highlighted word for it.
+ */
+.graph__open {
+  display: flex;
+  flex: 1 1 auto;
+  /* CENTRED, NOT BASELINE-ALIGNED. Baseline grouping was right while this control held two pieces of
+     text — a label and an age — that had to sit on one line together. The age has gone, so the only
+     thing left to align is the label, and its neighbours are no longer text at all: the magnifier
+     and the arrow are 20px boxes centred in the row by `.graph__row`. Aligning a label's baseline
+     while the icons beside it centre is what left the name sitting visibly high in its row. */
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: 100%;
+  /* NOT EVEN ON BOTH SIDES, because what is on the two sides is not the same thing. The left is the
+     box's own inset and holds the label off the frame; the right is the gap to the magnifier, which
+     stands in the flow after this control and carries the rest of the clearance to the box's edge
+     itself. The full 12px here would put every row's label a further four pixels short of the icons
+     for nothing. */
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  /* The MONO for the label, which is a record's own name out of the database — an identifier a
+     reader matches against a row, and one they may be about to type into a mention. The sans is for
+     what this window says, not for what it holds. `--text-sm` rather than `--text-base` because the
+     mono runs wider than the sans at equal size and the row is one line inside a 260px box the
+     layout has already budgeted. */
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  text-align: left;
+  user-select: none;
+}
+
+/*
+ * A RETIRED ROW IS THE NAME CROSSED OUT — a recipe nobody writes reports to any more, a script that
+ * has been replaced.
+ *
+ * A SHAPE RATHER THAN A SHADE, on the precedent the subagents toggle set in `chat.css`: a line
+ * through a word survives a reader who cannot tell two greys apart, survives this board's own dust
+ * and chalk, and is simply how anybody writing on a board says not this one. Dimming instead would
+ * put a retired row into the same visual class as a row that is merely quiet.
+ *
+ * ON THE LABEL, NOT ON THE ROW. The row also holds the magnifier and the disclosure arrow, and both
+ * still work: a retired recipe is a thing to READ — its text is why the reports under it say what
+ * they say — so striking the whole row would be drawing it as unusable when only one thing about it
+ * has changed. The `line-through` inherits into nothing else, because the label is one span of text.
+ */
+.graph__row--inactive .graph__label {
+  text-decoration: line-through;
+}
+
+.graph__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * THE ROW'S CONTROLS STAND IN ITS FLOW AND ARE ALWAYS DRAWN.
+ *
+ * There was one of them once and it was revealed on hover, on the argument that a glyph on every one
+ * of twenty rows in a 260px box is more furniture than record. What that bought was a board whose
+ * two chief gestures — open this record, show me what points at it — existed only for a reader who
+ * had already swept a pointer across a row, and did not exist at all on a touch screen. So the
+ * reveal is gone, and everything it dragged behind it goes with it: the `opacity` swap, the lift out
+ * of the flow that let the age reach the edge, the padding reserve that gave the room back, and a
+ * whole `hover: none` block whose only job was to undo all three where there is no hover. Always
+ * visible is now the one layout, so there is nothing left for a media query to correct.
+ *
+ * THE HEIGHT CONTRACT IS UNTOUCHED, and it is the thing to check when tuning either of these: both
+ * are shorter than `--graph-row-h` (top of this file), so neither can grow the row the packing has
+ * already spent pixels on.
+ *
+ * STILL NO ⠿ GRIP. It would put the record in the composer with a click — the keyboard's half of the
+ * drag, as the magnifier is the keyboard's half of the double click — but the ROW is the drag
+ * source, so a handle beside it says one thing twice.
+ */
+.btn--icon.graph__magnify {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+}
+
+/* Twelve pixels of `currentColor`, drawn rather than typed, for the reason the component's own note
+   gives: there is no magnifier code point that lands at the weight of the text beside it on every
+   machine. The declarations are `.chat__context-glyph`'s in chat.css exactly, because it is the same
+   bargain — the stroke is what makes the mark chalk rather than ink. */
+.graph__magnify-glyph {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * The disclosure, and ITS 9px OF RIGHT MARGIN IS LOAD-BEARING.
+ *
+ * `.graph__row--expanded::after` cuts the output socket into the box's right edge at `right: 0`, and
+ * that dot is precisely where `layoutGraph` starts this row's bezier: every wire leaving the row is
+ * anchored to it. So the arrow clears the socket instead of the socket moving for the arrow — a dot
+ * nudged inward to make room would take every link in the graph with it, and the links are solved in
+ * closed form against a geometry this sheet does not get to change. The margin is spelled in pixels
+ * for the same reason the dot's own 9 is: it is measured against that dot rather than against the
+ * spacing scale.
+ */
+.btn--icon.graph__disclose {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 20px;
+  margin-right: 9px;
+  font-size: var(--text-sm);
+}
+
+/* A row of one of the five LEAF tables has no arrow — the three run tables, a series preparation and
+   an information source are tables nothing in this schema can point at, so a control there would be
+   a control that does nothing — and this holds the room it would have taken. Without it the
+   magnifiers would sit at two different distances from the box's edge down a single column of rows,
+   which reads as two kinds of row rather than as one row with something extra to offer. */
+.graph__disclose-slot {
+  flex: 0 0 18px;
+  margin-right: 9px;
+}
+
+/* -- a box with no rows ---------------------------------------------------------------------------- */
+
+/*
+ * Exactly `--graph-note-h`, because the layout budgeted one line for it.
+ *
+ * "none recorded" is a box that was drawn on purpose: an edge that exists and holds nothing is an
+ * audit finding rather than an absence, and an expansion that drew nothing where an edge is would
+ * read as a read that did not happen.
+ *
+ * IT IS ALSO A GREAT DEAL MORE COMMON THAN IT WAS, and that is the point rather than a side effect.
+ * The arrow is drawn from the SCHEMA now, so a recipe with no reports yet opens onto exactly this
+ * box — which is how a reader tells an edge that is empty from an edge this schema does not have.
+ * The second case has no box at all: a leaf row carries no arrow, and what answers a click on one is
+ * the outline on the row itself, a smaller claim and the only true one.
+ */
+.graph__note {
+  display: flex;
+  flex: 0 0 var(--graph-note-h);
+  align-items: center;
+  height: var(--graph-note-h);
+  margin: 0;
+  padding: 0 var(--space-3);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* -- show more --------------------------------------------------------------------------------------- */
+
+/* Fixed height, inside the box, because the layout added `--graph-footer-h` for it. A page loaded
+   here lands in the store rather than in this component: a refresh half a second later replaces the
+   slice, and extras held out here would vanish under the pointer that asked for them. The sans at
+   16px, and at `.btn`'s own 600 rather than a step above it: this is a button in a box of rows and
+   not the box's title, so it should not out-weigh the strip at the top. It fits the 26px budget at
+   line-height 1. */
+/* THE CLEARANCE COMES OUT OF THE STRIP, NOT OUT OF THE BUDGET. This is the last thing in the box, so
+   its fill would paint over the frame's bottom line and its divider would cross both side lines —
+   the rows' problem one row lower down. The margin holds it off all three, and the height gives back
+   exactly what the margin takes, so `TITLE_H + rows * ROW_H + FOOTER_H` is still the height the
+   packing solved. A 16px line box still clears the 20px that leaves. */
+.btn.graph__more {
+  flex: 0 0 calc(var(--graph-footer-h) - var(--node-clear));
+  height: calc(var(--graph-footer-h) - var(--node-clear));
+  margin: 0 var(--node-clear) var(--node-clear);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* -- a refusal ---------------------------------------------------------------------------------------- */
+
+/*
+ * Neutral on purpose, like the record panel's. A refusal from the record API is an ANSWER — that
+ * row has been deleted since you drew it, that id is not a record — and painting it red would teach
+ * the reader to distrust the parts of this window that are working exactly as designed.
+ *
+ * The retry re-reads the WHOLE graph rather than this node alone. Every open row is re-asked, this
+ * one with them, which is one path through the loader and therefore one place for the merge rules to
+ * be right.
+ */
+.graph__node--refusal {
+  border-color: var(--border-strong);
+}
+
+/*
+ * Held off the frame on the three sides it reaches, like every other fill in a box. It is the one
+ * that can afford a margin outright: `flex: 1 1 auto` means the space the margin takes comes off
+ * what this panel grows into, so the box is exactly as tall as `REFUSAL_H` either way.
+ *
+ * AND THE PADDING PAYS FOR IT, which is not a nicety. What `flex: 1 1 auto` gives up is height, and
+ * every pixel of that comes off the ONE grid row with no slack in it: `minmax(0, 1fr)` over a 12px
+ * sentence at `--leading-tight` needs 16.2px and had 20, so a margin charged to it alone would clip
+ * the descenders off every refusal in the graph — with `overflow: hidden` above to make sure nobody
+ * saw it happen. Four pixels of vertical padding rather than eight is the trade, and it is the right
+ * one twice over: the sentence comes out with more room than it had, and a panel that now stands
+ * clear of the frame needs less of its own inside to look inset.
+ */
+.graph__refusal {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--space-1);
+  min-height: 0;
+  margin: 0 var(--node-clear) var(--node-clear);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+/* `--text-xs` and a tight leading, where the same sentence on a note runs `--text-sm` and a normal
+   one. The divergence is the height contract at the top of this file rather than drift: this one is
+   inside a box whose height the layout solved in closed form before React saw it, the box clips its
+   own overflow, and a larger line here would be a sentence cut off rather than a sentence wrapped. */
+.graph__refusal-text {
+  margin: 0;
+  min-height: 0;
+  color: var(--text);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* "Try again", at 13px rather than the 12 the refusal's own sentence runs at. `.btn` writes its
+   label in the sans — a button's word is one this window chose — and the size is a step up from the
+   text above it because a control the reader is being asked to press should not be the smallest
+   thing in the box. The 22px height is unchanged, so the box's closed-form arithmetic is untouched:
+   13px in a 22px button still clears its own line box. */
+.btn.graph__retry {
+  justify-self: start;
+  height: 22px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}

@@ -1,0 +1,103 @@
+/*
+ * Two families, vendored: JetBrains Mono for the technical data, and Source Han Sans for everything
+ * this window says in its own voice. The sans is declared under the name Google publishes it as —
+ * `Noto Sans SC`, which is Source Han Sans's OFL release with the simplified-Chinese repertoire —
+ * because that is the name in the file. `tokens.css` holds the rule that sorts one family from the
+ * other; this file is only where the files are declared.
+ *
+ * VENDORED RATHER THAN FETCHED, because this app is served from loopback and works offline — a
+ * `@font-face` pointing at a CDN would make typography the one feature that needs the internet, and
+ * would ship every reader's IP to a font host besides. The woff2 files live in
+ * `web/src/assets/fonts/` with the licenses beside them (a license has to travel with the files it
+ * covers), and the two sitting there are NOT one license for one directory: `OFL.txt` covers
+ * JetBrains Mono and nothing else, `OFL-NotoSansSC.txt` covers the sans and nothing else. Bun's
+ * bundler follows the `url()` references and serves them like any other asset, in dev and inside the
+ * compiled binary alike.
+ *
+ * SIX STATIC INSTANCES OF THE MONO RATHER THAN THE VARIABLE FONT, which the upstream release ships
+ * only as TTF — using it would add a conversion step to a repo with no font tooling. These cover
+ * every weight the stylesheets declare (400/500/600), real Bold for rendered-markdown `<strong>` (a
+ * synthesised bold smears at 12px), and real italics for `<em>` and the one folded-line style.
+ *
+ * ONE VARIABLE FILE FOR THE SANS, which is the opposite decision made for the same reason: upstream
+ * publishes a `wght` axis as woff2 already, so there is no conversion step to avoid and no argument
+ * for cutting one axis into four static instances. Every weight the sans is asked for between 400
+ * and 700 is interpolated from the drawn masters rather than smeared by the rasteriser.
+ *
+ * THE SANS SHIPS NO ITALIC, and that is the one thing this pairing costs. Where `<em>` lands on
+ * prose — the folded-conversation line, emphasis inside a rendered report — the browser SYNTHESISES
+ * the slant by shearing the upright, which is a fair rendering of a face that has no cursive to
+ * offer and is visibly not a drawn italic. The mono is unaffected: it carries two real italics, and
+ * the code and stored values it sets are where a sheared glyph would have been hardest to read.
+ *
+ * `font-display: swap`: the fallbacks are metrically close enough that the swap is a flicker, and
+ * text a reader can see immediately beats text that is perfect a beat later.
+ */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../assets/fonts/JetBrainsMono-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* -- the sans: Noto Sans SC (one variable file, wght 400-700; see the header) ------------------ */
+
+/*
+ * NO `unicode-range` AND NO LATIN/CJK SPLIT, which would be indefensible on the open web and is the
+ * right call here. A subset list is a bet about bandwidth, and there is no bandwidth in this
+ * arrangement to bet on: the window is served over loopback out of a compiled binary, so the file is
+ * a read off the local disk rather than a transfer somebody's connection has to survive, and it is
+ * paid once. `font-display: swap` covers the moment it takes. What a split would cost is real: two
+ * files to keep in step, and a range list where one codepoint left off falls silently through to
+ * whatever face the platform has, per character, in the middle of a word. One file, every script it
+ * covers.
+ */
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("../assets/fonts/NotoSansSC-wght.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}

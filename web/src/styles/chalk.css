@@ -1,0 +1,66 @@
+/*
+ * Chalk: the material everything drawn ON the board is made of.
+ *
+ * The second MATERIAL sheet, paper.css's sibling: the graph's boxes, the corner chips, the
+ * conversation dock and the send button are all the same substance — lines of chalk on slate — and
+ * this is where that substance is mixed once. Consumers import it beside their own geometry sheets,
+ * the way the instruments import `lcd.css`.
+ *
+ * THE FRAME IS A LAYER, NEVER A BORDER ON THE CONTENT'S OWN BOX, and this is the one rule that
+ * cannot be bent: a chalk stroke gets its hand-drawn wobble from an SVG displacement filter
+ * (`ChalkDefs.tsx`), a filter displaces EVERYTHING in the element it lands on, and glyphs pulled
+ * through it come out smeared. So every chalk box is two siblings — an inert `.chalk-frame`
+ * carrying the border, the fill and the filter, and the content beside it, crisp and `position:
+ * relative` so it paints above. The frame also takes `pointer-events: none`, so the box's gestures
+ * belong to the content that owns them.
+ *
+ * The fills are SOLID chalk-dust tokens, and they are load-bearing rather than decorative: the
+ * graph's wires pass under its boxes, and a hollow box would show every wire through its own rows.
+ * `--bright`'s stronger border is the open/pressed state; `--hollow` is for the one shape that may
+ * be pure outline (a button on a surface that is already filled).
+ *
+ * Three seeds of the same box filter, dealt by `data-chalk`, so a row of chalk boxes does not
+ * repeat one wobble down the screen — the same deterministic-variety bargain the notes' deckles
+ * make, chosen by the component from a hash, never at random in render.
+ */
+
+.chalk-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2.5px solid var(--chalk);
+  border-radius: 9px;
+  background: var(--bg-panel);
+  filter: url(#chalkbox);
+}
+
+.chalk-frame--bright {
+  border-color: var(--chalk-strong);
+  background: var(--bg-active);
+}
+
+.chalk-frame--hollow {
+  background: none;
+}
+
+.chalk-frame--thin {
+  border-width: 2px;
+  filter: url(#chalkline);
+}
+
+[data-chalk="1"] > .chalk-frame {
+  filter: url(#chalkbox1);
+}
+
+[data-chalk="2"] > .chalk-frame {
+  filter: url(#chalkbox2);
+}
+
+/* A hand-drawn rule. Height and colour are the defaults a divider wants; a consumer that wants a
+   family's hue re-declares the background and keeps the wobble. */
+.chalk-line {
+  height: 2px;
+  border-radius: 2px;
+  background: var(--chalk-dim);
+  filter: url(#chalkline);
+}

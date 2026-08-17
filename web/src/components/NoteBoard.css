@@ -1,0 +1,723 @@
+/*
+ * The note board — everything open, as sticky notes stuck to the slate. Owned by NoteBoard.tsx; see
+ * the stylesheet convention at the top of base.css.
+ *
+ * THE NOTES FLOAT AND THE NOTES ARE PAPER. What this sheet owns is one note's internal layout and
+ * the record vocabulary below `.viewer__record`; the paper itself — face, magnet, the ink remap that
+ * recolours everything inside — is `styles/paper.css`, the shared material sheet, so a note here and
+ * an open ledger in the corner are sheets off the same pad. WHERE a note sits is neither sheet's:
+ * it is `state/notes.ts`'s arithmetic, written onto the element as an inline style, on the same
+ * bargain the conversation dock makes — the clamp has to do sums with the viewport, and a position
+ * declared here would be a second copy of a number this stylesheet could only guess at.
+ *
+ * THE `viewer__` PREFIX IS AN ADDRESS AND NOT A DESCRIPTION, and it is kept deliberately even though
+ * this surface is a board of notes rather than a viewer of one record. The prefix exists to keep one
+ * surface's selectors from reaching another's — see the convention at the top of base.css — so
+ * what it has to be is UNIQUE, not accurate. Renaming it would touch every rule in this file and
+ * every className in three components to say nothing the reader did not already know from the file
+ * they are reading, and it would leave the other name in every screenshot, bug report and comment
+ * that already names it.
+ *
+ * THERE IS NO SHARED RECORD-ROW SHEET, and the one rule that would live in it is at the foot of this
+ * file. A shared row vocabulary — groups, rows, counts, per-edge notes, a grip — is what two panels
+ * drawing records as rows would need. The graph has rows of its own, and nothing lists joins as rows:
+ * the graph draws every one of those edges as a line on the board this note is stuck to. That leaves
+ * one block, the refusal, and one block does not earn a stylesheet.
+ *
+ * THE ROOM IS ALSO WHAT MAKES A COLUMN GRABBABLE. A field row and a prose block each drag as one
+ * column of the record, so each needs a band the pointer can find and a grip that appears in it.
+ * Every one of those bands is `--bg-hover` and nothing else: this is an audit surface, and a colour
+ * on a row would be this window saying something about a record that the record does not say about
+ * itself. (On paper, `--bg-hover` IS the paper's hover wash — the remap in paper.css answers it.)
+ */
+
+/* -- the board ------------------------------------------------------------------------------------ */
+
+/*
+ * A sheet of glass over the whole window, holding the notes.
+ *
+ * TRANSPARENT TO THE POINTER except where there is actually a note — the `.lcd-stack` dance, for the
+ * same reason: a pane over the entire board must not swallow the pans and double-clicks meant for
+ * the canvas under it. The pane stays `none` and each note opts back in, so the empty slate between
+ * two notes passes the pointer straight through to the graph.
+ *
+ * IT IS FIXED AND UNTRANSFORMED, which is what makes a note's inline `left`/`top` viewport pixels —
+ * the same coordinates `state/notes.ts` clamps against and the same ones `getBoundingClientRect`
+ * hands back for the Bin. An ancestor with a transform would re-root all of it silently; the one
+ * element in this window that carries one is `.graph__surface`, which is why the board is a child of
+ * `App` and not of the graph.
+ *
+ * `--z-note` puts every note above the graph's boxes, above the corner column and above the
+ * conversation — a note is the work; instruments are what it is read against, and the dock is the
+ * desk it lies on — and below only the toasts and the dialog. `tokens.css` holds the whole argument.
+ * Notes settle among THEMSELVES by the `z-index` each one carries inline, which is the counter the
+ * store hands out — see `state/notes.ts` on why it only ever goes up. Each note is therefore its own
+ * stacking context, which is why an ⓘ opened inside one cannot climb over the note in front of it.
+ */
+.noteboard {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-note);
+  pointer-events: none;
+}
+
+/* -- one note ------------------------------------------------------------------------------------- */
+
+/*
+ * One open thing: a sheet of paper (the `.paper__sheet` layer underneath), a magnet, a head and a
+ * body.
+ *
+ * WRITTEN AS `.note.paper` BECAUSE `.paper` DECLARES `position: relative`. At equal specificity the
+ * bundler's emission order decides which wins, and the losing order leaves every note in the normal
+ * flow at the top-left corner of the window, stacked on each other, with the inline `left`/`top`
+ * doing nothing at all. Two classes is the rule at the top of base.css, and this is the case it was
+ * written for.
+ *
+ * `min-width: 0` because one long unbroken field value would otherwise push the note wider than its
+ * declared width. `overflow: hidden` is deliberately ABSENT — the sheet's deckle wobbles past the
+ * border box, and clipping it would slice the torn edge flat; the body's own rules clip what needs
+ * clipping. The magnet does not need it: the close sits inside the paper on both axes, which
+ * is what makes a button clipped by nothing also a button that is entirely on its own note.
+ *
+ * NO `data-tilt`, and the absence is deliberate. One of six standing rotations hashed from a note's
+ * key is exactly right for a board of things somebody stuck up in a hurry, and a wall of slightly
+ * crooked paper reads that way. It is exactly wrong for the things on THESE notes: a field
+ * grid, a column of stored values, a form. Text set a degree off horizontal is text the eye keeps
+ * levelling as it reads, the deckled edge and the magnet already say handmade, and a record being
+ * audited is the last thing in this window that should be hard to read. The paper is imperfect; what
+ * is written on it is straight.
+ */
+.note.paper {
+  position: absolute;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+/*
+ * A note the reader has given a size.
+ *
+ * THE WIDTH AND HEIGHT ARE NOT HERE. A note whose corner can be dragged has a width per note rather
+ * than a `width: 400px` this sheet declares for all of them. `state/notes.ts` owns both numbers and
+ * `NoteBoard.tsx` writes them onto the element, the same bargain the conversation dock makes with its
+ * rectangle. What lives here is what a CHOSEN height means, which is a question about layout and
+ * belongs in a stylesheet.
+ *
+ * A column, so the body takes what the head leaves. Without this the head and body are two blocks in
+ * normal flow inside a box with a declared height, the body keeps its content height, and dragging
+ * the corner down just adds blank paper under a `<pre>` that is still scrolling its own overflow.
+ * `min-height: 0` is the flex-item escape every scroll container inside a flex column needs: the
+ * default `min-height: auto` refuses to shrink a child below its content, so the body would push
+ * past the sheet's bottom edge instead of scrolling inside it.
+ *
+ * AND THE CAP COMES OFF. `.note__body`'s `min(70vh, 640px)` is the right answer for a note nobody has
+ * sized — it stops a thesis from running off the bottom of the window — and it is the wrong answer
+ * the moment somebody drags the corner past it, at which point the sheet grows and the body inside
+ * stops, leaving a stripe of empty paper below the text. The clamp in `state/notes.ts` is what keeps
+ * a sized note reachable now: the head stays on the glass, and the size itself is bounded by the
+ * viewport.
+ */
+.note--sized.paper {
+  display: flex;
+  flex-direction: column;
+}
+
+.note--sized > .note__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * INSIDE A SIZED BODY, NOTHING SHRINKS. The body is a flex column so the document below can be told
+ * to take the leftover room, and the default `flex-shrink: 1` that comes with that would squash a
+ * field grid to fit instead of letting the container scroll — a scroll container whose children
+ * agree to be smaller never scrolls. `0 0 auto` puts every child back at its own height and hands
+ * the overflow to `.scroll-y`, which is where it belongs.
+ */
+.note--sized > .note__body > * {
+  flex: 0 0 auto;
+}
+
+/*
+ * The one exception, and the reason the body is a column at all: a published report should be as
+ * tall as the note the reader dragged. Its stated `min(50vh, 480px)` is the right answer for a note
+ * sized by its content and the wrong one the moment somebody pulls the corner past it — a document
+ * through a letterbox with blank paper underneath. The floor keeps it a report rather than a slot
+ * when the note is dragged short, at which point the body scrolls as everything else does.
+ */
+.note--sized > .note__body > .viewer__frame {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 240px;
+}
+
+/*
+ * The corner grip.
+ *
+ * NOT `resize: both`, which would be one declaration and is unusable here: the UA's resizer requires
+ * `overflow` to be anything but `visible`, and this note deliberately does not clip — the sheet's
+ * deckle wobbles past the border box, and clipping it slices the torn edge flat (see above). It also
+ * writes width and height onto the element itself, which would put the browser and `state/notes.ts`
+ * in charge of the same two numbers with no way to reconcile them.
+ *
+ * `touch-action: none` is not optional, for the reason the head's is: without it a touch drag is
+ * claimed by the browser's own scroll gesture before `setPointerCapture` sees it, and the corner
+ * does not move on a tablet. The mark is two chalk-short strokes in the paper's own line colour,
+ * drawn with a gradient so there is no extra element to hold them.
+ */
+.note__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  background-image: linear-gradient(
+    -45deg,
+    transparent 3px,
+    var(--paper-line) 3px,
+    var(--paper-line) 4px,
+    transparent 4px,
+    transparent 7px,
+    var(--paper-line) 7px,
+    var(--paper-line) 8px,
+    transparent 8px
+  );
+  cursor: nwse-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+/*
+ * The other corner, mirrored. Fresh notes are dealt from the RIGHT edge of the glass — see
+ * `spawnPoint` in `state/notes.ts` — so a new note has a margin's worth of room to its right and the
+ * whole board to its left, and the grip above points at the one direction there is nothing in. The
+ * strokes are the same two, run the other way; a transform would flip them equally well and this is
+ * one mechanism fewer.
+ */
+.note__resize--left {
+  right: auto;
+  left: 0;
+  background-image: linear-gradient(
+    45deg,
+    transparent 3px,
+    var(--paper-line) 3px,
+    var(--paper-line) 4px,
+    transparent 4px,
+    transparent 7px,
+    var(--paper-line) 7px,
+    var(--paper-line) 8px,
+    transparent 8px
+  );
+  cursor: nesw-resize;
+}
+
+/*
+ * The edge strips: three invisible hit zones, one per border a drag may take hold of. The top edge
+ * is missing on purpose — that strip is the head, and dragging it moves the note.
+ *
+ * THEY STRADDLE THE BORDER, 6px off the paper and 4px on it, and every one of those pixels is
+ * argued. Outward: the deckle wobbles past the border box and nothing clips it, so the overhang lands
+ * on the torn edge itself, which is exactly where a reader aims when they mean "this edge". Inward:
+ * 4px stays inside the body's own padding, so a strip covers no field, no row and no hover band, and
+ * leaves most of the scrollbar's track still grabbable. Nothing is painted — the cursor is the whole
+ * affordance, and a mark here would sit on the torn edge and read as a defect in the paper.
+ *
+ * `touch-action: none` for the reason the corner's is: without it a touch drag is claimed by the
+ * browser's scroll gesture before `setPointerCapture` sees it.
+ */
+.note__edge {
+  position: absolute;
+  touch-action: none;
+  user-select: none;
+}
+
+.note__edge--left {
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.note__edge--right {
+  top: 0;
+  right: -6px;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.note__edge--bottom {
+  right: 0;
+  bottom: -6px;
+  left: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+/* Content paints above the sheet: the sheet layer is positioned, and a positioned element paints
+   over normal-flow text unless the text's own box is positioned too. */
+.note__head,
+.note__body {
+  position: relative;
+  min-width: 0;
+}
+
+/*
+ * The note the last gesture was about.
+ *
+ * A ring on the sheet and nothing more. A note that has just been put up lands under whatever the
+ * reader was already looking at, so the mark's whole job is to answer "which one is the new one" for
+ * the second or two after it appears; a filled background or a lifted shadow would make one note
+ * look selected, which is not what a board of open things is. It is deliberately NOT moved by
+ * clicking a note — that raises it, which the eye can see for itself.
+ */
+.note--focused > .paper__sheet {
+  outline: 2px solid var(--paper-mut);
+  outline-offset: 1px;
+}
+
+/*
+ * The note's own head: what it is, and the handle it is moved by.
+ *
+ * THE WHOLE STRIP IS THE DRAG HANDLE, which is why it takes a grab cursor and why every control on
+ * it stops its own pointerdown (see NoteBoard.tsx). `touch-action: none` is not optional: without
+ * it a touch drag is claimed by the browser's own scroll gesture before `setPointerCapture` ever
+ * sees it, and the note simply does not move on a tablet.
+ *
+ * THE RIGHT PADDING IS THE MAGNET'S FOOTPRINT AND HAS TO BE READ AS ONE NUMBER. The close sits 6px
+ * in from the sheet's right edge — the material's own corner, declared once in `paper.css` for every
+ * magnet in the window — and is 18px across, so it occupies the first 24px of the corner and
+ * a control may not begin before 32px. `--space-5` — 24px — is exactly the stone's outer edge, which
+ * would end the last button on the strip six pixels UNDER the magnet, and the magnet is above it and
+ * takes the press. Six pixels of a 28px control is a target that fails about once in five.
+ *
+ * The vertical padding is even: 8 over 4 would put the title nearer the rule under it than the
+ * paper's own edge, with no argument for it.
+ *
+ * `position: sticky` is deliberately NOT used — a head that detached from its own note while the body
+ * scrolled would be a chip floating over somebody else's record.
+ */
+.note__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--paper-line);
+  cursor: grab;
+  touch-action: none;
+}
+
+.note__head:active {
+  cursor: grabbing;
+}
+
+/*
+ * THE CLOSE, WHICH IS A MAGNET.
+ *
+ * Two classes for two fights, both with the material sheet. `.paper__magnet` declares
+ * `pointer-events: none` — a stone is a material there, and a material at `z-index: 3` over a header
+ * must not eat the presses meant for what is under it — and this one IS the control, so it has to
+ * win that back. And a `<button>` arrives with the UA's own border, padding and background, any of
+ * which would show as a square behind an 18px circle.
+ *
+ * NO POSITION HERE ANY MORE, AND THAT IS THE POINT OF THE MATERIAL OWNING THE CORNER. The stone used
+ * to be pinned by this rule, because it was the one magnet in the window that did not overhang its
+ * sheet: `.paper__magnet` sat at `top: -8px`, half a stone standing off the edge, which is what a
+ * magnet holding paper to a board looks like and was right while most of them were decoration. It is
+ * wrong for a BUTTON — half the target would hang outside the note, over whatever the note is
+ * covering, and the note draws no `overflow: hidden` to make that safe — and every magnet in this
+ * window is a button now. So the 6px moved into `paper.css` and every sheet gets the same corner;
+ * what is left here are the two fights above, which are this element's and not the material's.
+ */
+.note__close.paper__magnet {
+  padding: 0;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/*
+ * The table, and the only thing written on the strip: which table this record came out of. The name
+ * is not beside it — the name is the first row of the field grid below; see NoteBoard.tsx.
+ * It shrinks rather than pushing the controls off the end.
+ *
+ * THE SANS, WHICH IS `.chip`'S OWN INHERITED FACE — restated here only because this rule is already
+ * arguing with the base pill about size and weight, and a reader looking at three declarations
+ * should not have to work out that the fourth was left off on purpose. The table's name is this
+ * window's word for the record and not the record's own, which is what puts it on the sans's side of
+ * the rule in tokens.css.
+ *
+ * A STEP UP IN SIZE, and the argument is the surface rather than a floor. A note's head holds one
+ * chip and a spacer, where the surfaces `.chip` was sized for — a graph box's table counts, the
+ * composer's mentions — hold a row of them and pay for every pixel. This one can afford 13px, and
+ * the kind of card a reader is looking at is the first thing they read on it.
+ *
+ * WRITTEN AS `.chip.note__kind`, per the rule at the top of graph.css. The size it is overriding is
+ * `.chip`'s own, at one class in a different sheet, and which of the two the bundler emits first is
+ * not the import order's business — a single class here would be a coin toss re-tossed every build.
+ */
+.chip.note__kind {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* Pushes the controls to the far edge. Its own class rather than `.panel__spacer`, which belongs to
+   the panel header's vocabulary — see the naming rule at the top of base.css. */
+.note__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * The body, which scrolls on its own.
+ *
+ * ONE SCROLLBAR PER NOTE, and this is the reversal the board made. The rail had exactly one for the
+ * whole column, on the argument that the stack was a single document read top to bottom — which was
+ * true of a list and is nonsense for notes at six different places on a board. A note is its own
+ * document now, so it scrolls as one. The scrolling itself is `.scroll-y`, the window's utility,
+ * carried in the markup beside this class — including the `overscroll-behavior: contain` that stops
+ * a wheel reaching the end of a note from carrying on into whatever is behind it.
+ *
+ * What is left here is the CAP, and it is against the VIEWPORT rather than the note's content:
+ * a thesis is longer than any screen, and a note taller than the window is one whose magnet cannot
+ * be reached. The clamp in `state/notes.ts` keeps the head on the glass; this keeps the rest of the
+ * note from running off the bottom of it.
+ *
+ * IT ONLY GOVERNS NOTES NOBODY HAS SIZED. A height the reader dragged is a number they chose against
+ * the window in front of them, and a cap that overrode it would be this sheet arguing with the
+ * gesture — so `.note--sized` lifts it, and the size's own bounds take over. See that rule above.
+ */
+.note__body {
+  max-height: min(70vh, 640px);
+}
+
+/* THERE IS NO `.note__form`. It padded a note whose body was a form rather than a record, because
+   `.viewer__record` carries its own rhythm and a report is full bleed — so a blank form was the one
+   body that would otherwise have sat against the sheet's edge. There are no forms: nothing in this
+   window writes to the database, and every note is a reading with `.viewer__record`'s own rhythm. */
+
+/* -- the document -------------------------------------------------------------------------------- */
+
+/*
+ * A published report, in a frame, at a height this stylesheet has to state.
+ *
+ * THE HEIGHT IS NOT DECORATION. A `height: 100%` here needs a fixed-height ancestor to resolve
+ * against, and a stack has none: its rows are auto-sized, so a percentage height resolves against
+ * nothing and collapses to the iframe's default of 150px — a report through a letterbox, which is
+ * exactly the failure the narrow layout in base.css documents from the other end.
+ *
+ * `color-scheme: light` is a statement about the CONTENT, not about this window. A published report
+ * is a fixed document that sets its own colours and knows nothing of the reader's theme; inheriting a
+ * dark canvas would leave a report that sets text colour but no background unreadable, and this panel
+ * is not allowed to restyle what was published. `Canvas` then paints the same white before the
+ * document has loaded, so a swap does not flash the panel's own surface.
+ *
+ * HALF THE VIEWPORT, CAPPED, which is what keeps a report readable inside a note without one
+ * document swallowing the whole board — and the cap stops it growing absurd on a tall monitor.
+ */
+.viewer__frame {
+  display: block;
+  width: 100%;
+  height: min(50vh, 480px);
+  border: 0;
+  color-scheme: light;
+  background: Canvas;
+}
+
+/* An anchor styled as one of the header's icon buttons; the underline every other link in this
+   window gets would read as a border on a 28px square. */
+.viewer__open,
+.viewer__open:hover {
+  text-decoration: none;
+}
+
+/* -- a record that is not a document -------------------------------------------------------------- */
+
+/* The body scrolls (it is a plain `.panel__body`), so this is only the rhythm between the bands. */
+.viewer__record {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-6);
+}
+
+/* -- the prose ------------------------------------------------------------------------------------- */
+
+.viewer__prose {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 var(--space-1);
+}
+
+/*
+ * The heading row IS the handle for this block: the `<pre>` under it cannot be a drag source without
+ * losing text selection — see the argument in `NoteBoard.tsx` — and a thesis you cannot select is a
+ * thesis you cannot quote.
+ *
+ * NO NEGATIVE MARGIN, and taking it out is what gave this note ONE left edge. It reached 8px back
+ * into `.viewer__record`'s own padding so the column's name would line up with the left edge of the
+ * prose BOX below it — a local alignment, argued against the wrong neighbour. The name a reader
+ * actually compares this one to is the name of a field row, and those sit at 24px from the sheet on
+ * a band that starts at 16px. This now does the same, from the same arithmetic: the block's 4px, plus
+ * this row's 8px.
+ */
+.viewer__prose-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.viewer__prose-head:hover {
+  background: var(--bg-hover);
+}
+
+.viewer__prose-head:active {
+  cursor: grabbing;
+}
+
+/* The column's real name, because this is an audit view: a reader who is about to write
+   `@thesis:…` into a sentence should know the paragraph above it came out of `content` — and, now
+   that the block drags, which column their drag is going to name. */
+/* A COLUMN NAME, which is a LABEL on this note rather than anything stored — the same word the
+   schema uses, said here because a reader is being told which column they are looking at — so the
+   sans. The `letter-spacing: 0` stays: it is the pair of this label and the value under it being set
+   solid, and a tracked label over an untracked block reads as two documents on one sheet. */
+.viewer__prose-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A stored value, shown as it is stored. `pre-wrap` keeps the author's newlines and still wraps at
+ * the panel's edge, which a bare `<pre>` would not — it would scroll sideways and take the record's
+ * own width with it.
+ *
+ * The cap is what keeps the edges below reachable: a script's source or a long recipe would
+ * otherwise put "Points to" a full screen and a half beneath the fold, and the joins are half of why
+ * anybody opens a record here.
+ */
+.viewer__prose-text {
+  margin: 0;
+  max-height: 32em;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+
+/* -- the row as stored ------------------------------------------------------------------------------ */
+
+/*
+ * THE COLUMN GAP IS ZERO ON PURPOSE, and the gutter between name and value is the cells' own padding
+ * instead. A hovered pair has to read as ONE row — that is the whole point of lighting both halves —
+ * and a 12px `gap` would have cut a stripe of panel through the middle of the band. The name track
+ * grows by the padding it just took on so the column names keep the width they had.
+ */
+.viewer__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 12em) minmax(0, 1fr);
+  gap: var(--space-1) 0;
+  margin: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+}
+
+/*
+ * The half that is grabbable: a short label the pointer cannot be trying to select.
+ *
+ * CENTRED, AND NOT `flex-start`. A 20px button top-aligned beside a label that can wrap to two lines
+ * stays beside the FIRST line, which is the line it names — an argument for a row with a grip in it.
+ * What is in here is a label and — on six columns in the whole app — an ⓘ that is 16px against a 13px
+ * line. Top-aligned, that dot would sit a pixel or two high against the word it belongs to on every
+ * row that has one, for a wrap that almost never happens in a 12em track. `.document__label` centres,
+ * and these are the same row said twice.
+ */
+.viewer__field-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text-muted);
+  cursor: grab;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.viewer__field-name:active {
+  cursor: grabbing;
+}
+
+/* The column's name, in the sans like every other label; the VALUE cell beside it names the mono for
+   itself, because that is a stored byte. The two halves of a row being in two faces is the whole
+   font rule made visible, once per line.
+
+   IT TAKES ONLY THE ROOM IT NEEDS, AND NOT THE WHOLE TRACK. `1 1 auto` grows it to fill a 12em cell,
+   which pushes everything after it — the ⓘ — hard against the value column: on `version`, a
+   seven-letter word with its dot a hundred pixels away, reading as a mark on the VALUE rather than a
+   note on the label. `0 1 auto` still shrinks (the
+   `min-width: 0` and the wrap below are what make a long column name survive the cell), and the ⓘ
+   sits at the 4px gap every editor label holds it at. */
+.viewer__field-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* A value can still be a whole DSL document even after the prose has been promoted out of the row.
+   It keeps its newlines, wraps inside its own cell, and takes its own scrollbar rather than pushing
+   the edges of the record off the panel.
+
+   THE MONO, NAMED HERE. This cell is a `<dd>` and inherits the sans from the window's default, so
+   the face a stored value is drawn in has to be a declaration on the rule that draws it — an id, a
+   timestamp, an enum's exact spelling, all of them read character by character against something
+   else. It drags with its `<dt>` and yet keeps the text cursor: the pointer over a scrolling body of
+   monospace is reading it, and a `grab` here would promise a gesture the wheel and the scrollbar are
+   already competing for. */
+.viewer__field-value {
+  margin: 0;
+  max-height: 9em;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-family: var(--font);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+/*
+ * The pair, lit as one row.
+ *
+ * `:has` rather than a `hovered` column held in React: the two cells are siblings with nothing
+ * around them — a wrapper would break the grid — so each has to answer for the other, and the
+ * sibling combinator plus `:has` is exactly the shape of that question. The alternative re-renders
+ * the whole record, edge lists and all, on every crossing of a 20-row grid to paint a background.
+ *
+ * `:has(:focus-visible)` and not `:focus-within`, so that clicking a control in the row does not
+ * leave the row lit behind the pointer — the same rule the graph's row controls follow in
+ * `graph.css`.
+ */
+.viewer__field-name:hover,
+.viewer__field-name:has(:focus-visible),
+.viewer__field-name:has(+ .viewer__field-value:hover),
+.viewer__field-value:hover,
+.viewer__field-name:hover + .viewer__field-value,
+.viewer__field-name:has(:focus-visible) + .viewer__field-value {
+  background: var(--bg-hover);
+}
+
+/*
+ * NO GRIP ENDS A ROW — `NoteBoard.tsx` argues it, and what it costs. Nothing replaces it here
+ * either: the row's own hover wash above is the whole affordance, and a dozen 20px buttons fading in
+ * under a pointer travelling down a note is furniture that competes with that wash.
+ */
+
+/* -- a refusal -------------------------------------------------------------------------------------- */
+
+/*
+ * What a card puts where the record would have been, when the read came back refused.
+ *
+ * NEUTRAL ON PURPOSE. A refusal from the record API is an ANSWER — that id is not a record, that row
+ * has been deleted since you drew it — and painting it red would teach the reader to distrust the
+ * parts of this window that are working exactly as designed. It stays INSIDE the card it belongs to:
+ * on a board holding six notes, a refusal that wandered out of its own note is the only thing that
+ * could stop the reader telling which of the open records the database has gone quiet about.
+ *
+ * IT KEEPS A `resource__` PREFIX OF ITS OWN, and that is the convention rather than an
+ * oversight — see this file's note on `viewer__`. A prefix has to be UNIQUE, not accurate, and this
+ * is the one block that would live in a sheet of shared record-row vocabulary: the graph has rows of
+ * its own and nothing lists joins as rows, so one block is all there is, and one block does not earn
+ * a stylesheet. Renaming it would touch this rule and two classNames to say nothing a reader
+ * of either file did not already know.
+ */
+.resource__refusal {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  margin: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.resource__refusal-text {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * What the record is CALLED, in the two states that have nothing else to say it.
+ *
+ * A card that is still reading, or one whose read was refused, has no row and therefore no field
+ * grid — and the head draws no title of its own, because the name IS the grid's first row. Without
+ * this a refusal on a board of six notes is a sentence about nothing. The mono, because a record's
+ * name is an identifier the reader is matching against a row rather than a title this window wrote; the
+ * `.empty` sentence beneath it is the sans, which is the two faces doing exactly what they are for
+ * within four lines of each other.
+ */
+.viewer__waiting {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5) var(--space-6);
+}
+
+/* The block owns the inset, so the sentence gives up its own — `.empty` is sized for a whole
+   empty panel and its 32px of head room would open a hole between the record's name and the line
+   saying it is being read. Two classes so it wins whichever order the bundler emits the sheets in. */
+.viewer__waiting .empty {
+  padding: 0;
+}
+
+.viewer__subject {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/* There is no empty state: `App` unmounts this panel while nothing is open in it, so the first
+   card and the panel arrive together.
+
+   AND THERE IS NO EDGE VOCABULARY. `.viewer__section` and its heading dressed the two lists of joins
+   that closed every record — "Points to", "Pointed at by" — which are the graph on the board this
+   note is stuck to, drawn as lines the reader is already looking at. They went with the markup; see
+   NoteBoard.tsx. */

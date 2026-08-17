@@ -1,0 +1,451 @@
+/*
+ * The expanding ledger units. Owned by Ledgers.tsx (and worn by SessionPanel.tsx); the BONES — the
+ * head, the row — are `lcd.css`, and the MATERIALS are the shared sheets: `chalk.css` for the
+ * closed chip, `paper.css` for the open note. What this sheet owns is the reveal and the swap
+ * between the two.
+ *
+ * ONE SET OF RULES, THREE INSTRUMENTS. Log, Bin and Sessions are the same unit with different rows
+ * in it, and only one is ever open, so almost nothing here needs to know which one it is dressing —
+ * a unit's proportions arrive as custom properties from its own component, and its paper and magnet
+ * are simply the window's one paper and the window's one magnet.
+ *
+ * A UNIT IS A FLEX ITEM OF `.lcd-stack` IN BOTH STATES, which is the geometry the whole gesture
+ * rides on. Closed, it is a chip-sized head; open, the same element is the panel. Because the stack
+ * is a fixed column anchored to the BOTTOM edge, a unit growing taller keeps its own bottom and
+ * left edges where they were and pushes whatever is above it upward by exactly its growth — the
+ * displacement the product asks for, done by the layout rather than by any script. Nothing in here
+ * declares a `position`; see the compositing rule in `lcd.css`.
+ *
+ * THE EXPANSION ANIMATES TWO PROPERTIES AND NOTHING ELSE. The WIDTH is a plain transition between
+ * two fixed endpoints — chip and panel — so it needs no measurement and no modern-CSS bet. The
+ * HEIGHT is the `grid-template-rows: 0fr ↔ 1fr` trick: a one-row grid whose row is a fraction
+ * animates between nothing and the row's content height, which is the one way CSS can transition
+ * toward `auto` in every current browser. The body keeps the OPEN width at all times, so the width
+ * transition reveals text rather than rewrapping it mid-flight.
+ *
+ * `visibility` RIDES THE SAME TRANSITION, and its discrete interpolation is exactly the behaviour
+ * wanted: closing keeps the body visible until the shrink finishes (the rows are on screen through
+ * the whole collapse), opening shows it on the first frame — and a COLLAPSED body is `hidden`, so a
+ * keyboard cannot tab into controls the reader cannot see.
+ *
+ * IT IS BOUNDED IN BOTH DIRECTIONS. The width, because the panel floats over the graph and a
+ * read-out as wide as the window would be a modal that never announced itself as one; `46vw` keeps
+ * the right panel clear on every screen this app is usable on, and `520px` stops it becoming a
+ * strip on a very wide one. The height, because both ledgers hold a thousand rows: past `56vh` the
+ * body scrolls inside the glass — and the STACK's own clamp in `lcd.css` is the harder law, the one
+ * that keeps the session read-out on screen however tall this opens.
+ *
+ * EVERY RULE THAT CONTRADICTS `lcd.css` OR base.css IS WRITTEN WITH TWO CLASSES, for the reason at
+ * the top of graph.css: which sheet the bundler emits first is not the import order's business, and
+ * a single-class rule at equal specificity is a coin toss re-tossed on every build. Rules that only
+ * ADD properties are written plainly, because there is nothing for them to lose.
+ */
+
+/* -- the unit ------------------------------------------------------------------------------------- */
+
+/*
+ * THE TWO WIDTHS ARE CUSTOM PROPERTIES, declared once on the unit, because two rules need each of
+ * them: the housing transitions between the two, and the body below holds the OPEN width at all
+ * times so the transition slides the housing across the text instead of rewrapping it. Written twice
+ * they would be one expression with a warning attached to keep the copies equal; a property is the
+ * version of that warning the machine enforces. A third unit with different proportions — the
+ * session list — re-declares them on itself and inherits every other rule unchanged.
+ */
+.lcd.ledger {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* The chip: one word and the mark, a constant so the closed chips line up. */
+  --ledger-closed-w: 84px;
+  /* Bounded in both directions — see the header. */
+  --ledger-open-w: min(520px, 46vw);
+  width: var(--ledger-closed-w);
+  min-height: 0;
+  overflow: hidden;
+  transition: width var(--duration) var(--ease);
+}
+
+.lcd.ledger[data-open] {
+  width: var(--ledger-open-w);
+}
+
+/*
+ * TWO MATERIALS, ONE ELEMENT, swapped by the same state that runs the reveal. Closed, the unit is
+ * a chalk chip: the `.chalk-frame` layer draws it and the paper layers are display-gone. Open, the
+ * unit is a sticky note: the deckled sheet and its magnet come up and the chalk goes. Both layers
+ * are always mounted (Ledgers.tsx says why); `display` is the switch because a hidden material
+ * must also stop existing for the pointer and the paint, not merely fade.
+ *
+ * The sheet is inset from the housing so its deckled edge has room to wobble INSIDE the clip the
+ * reveal needs — a filter's displacement does not move the overflow boundary.
+ */
+.lcd.ledger[data-open] > .chalk-frame {
+  display: none;
+}
+
+.lcd.ledger:not([data-open]) > .paper__sheet,
+.lcd.ledger:not([data-open]) > .paper__magnet {
+  display: none;
+}
+
+.lcd.ledger .paper__sheet {
+  inset: 4px;
+}
+
+/* A SMALLER clearance than the sheet's 4px, not the same one, and the difference is each filter's
+   own reach: the deckles displace at scale 8-10 and the chalk boxes at 3-4 (`ChalkDefs.tsx`). The
+   housing clips either way, and a wobble sliced flat reads as a rendering fault rather than a hand. */
+.lcd.ledger > .chalk-frame {
+  inset: 3px;
+}
+
+/*
+ * Pressed onto the sheet's face rather than overhanging its edge: the housing clips at the reveal's
+ * boundary, and half a magnet is worse than a magnet placed a knuckle lower.
+ *
+ * THE TOP-RIGHT CORNER, WHICH THESE UNITS MAY CLAIM. On a sticky note the top-right magnet is the
+ * CLOSE, so a unit wearing one there without the gesture would be offering something it does not
+ * have — and these have it: the magnet is a real button (`Ledgers.tsx`, `SessionPanel.tsx`) and it
+ * puts the unit away.
+ *
+ * THE INSET IS THE ONE THING THESE UNITS RESTATE, and it is arithmetic rather than taste. The
+ * material pins every magnet 6px in from its own SHEET; this sheet is inset 4px inside the housing,
+ * and a magnet positioned against the housing knows nothing about that, so 10px from the housing is
+ * where 6px from the paper actually is. Get it wrong and this one stone sits in a different place
+ * from every other one in the window.
+ *
+ * TWO CLASSES TO WIN THE POINTER BACK. `.paper__magnet` declares `pointer-events: none` for the
+ * material it is, and a control has to outrank that by name — the same fight `.note__close`
+ * documents. A `<button>`'s own border and padding go with it, or a square would show behind the
+ * circle.
+ */
+.lcd.ledger .ledger__close.paper__magnet {
+  top: 10px;
+  right: 10px;
+  padding: 0;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* A hand pressing harder re-draws the chip. */
+.lcd.ledger:not([data-open]):hover > .chalk-frame {
+  border-color: var(--chalk-strong);
+  background: var(--bg-hover);
+}
+
+/*
+ * THE BIN, WITH SOMETHING HELD OVER IT.
+ *
+ * WRITTEN AT THE SAME SPECIFICITY AS THE HOVER RULE ABOVE AND AFTER IT, which is the whole of why
+ * this works. A note dragged onto the Bin is dragged with a CAPTURED POINTER, so `:hover` is
+ * genuinely on the section the whole time — a `.ledger--hot` rule at (0,3,0) would lose to the
+ * (0,4,0) hover above on specificity and the Bin would never light for the gesture that needs it
+ * most. Matching the count and coming later wins on source order, which is deterministic inside one
+ * file.
+ *
+ * THE SAME MARK IN BOTH MATERIALS: an edge, in each material's own danger colour. Closed, that is
+ * the chalk frame's border going danger chalk. Open, it is a ruled outline round the SHEET in danger
+ * INK — the paper itself does not move, because there is one paper in this window now and a Bin that
+ * warmed its own sheet when something crossed it would be the one surface that changes colour (the
+ * face and its ruled line used to be re-mixed 12% toward `#a03325`; that is what went). Ink over
+ * paper is how everything else on a sheet says something anyway.
+ *
+ * ON THE SHEET AND NOT ON THE HOUSING, because the sheet is the paper: the outline rides the same
+ * deckle filter the edge does, so the mark follows the torn edge instead of drawing a hard rectangle
+ * around a hand-torn sheet. It is the affordance `.note--focused` already uses on the board, in a
+ * different ink. `outline-offset` is NEGATIVE — inside the sheet's own edge — because this housing
+ * clips at the reveal's boundary and the sheet's 4px of clearance is spent on the deckle's own
+ * wobble; a ring drawn outward would be sliced flat exactly where the paper looks most torn.
+ *
+ * The head follows `--danger` in both states, which `.paper` has already remapped to the dark ink.
+ */
+.lcd.ledger.ledger--hot:not([data-open]) > .chalk-frame {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.lcd.ledger.ledger--hot[data-open] > .paper__sheet {
+  outline: 2px solid var(--danger);
+  outline-offset: -2px;
+}
+
+.lcd.ledger.ledger--hot .lcd__head.ledger__head {
+  color: var(--danger);
+}
+
+/*
+ * The head, which is the whole toggle. `lcd__head ledger__head` in the markup, so the head's
+ * padding, letter-spacing and colour come from the material — a `.ledger__head` that restated them
+ * would be a second copy to keep in step. What is neutralised here is what a `<button>` drags in:
+ * the border, the background, and the form-control type.
+ */
+.lcd__head.ledger__head {
+  /* Above the material layers, which are positioned and would otherwise paint over the words. */
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* On paper the head is the note's title: the sans, in ink (the `.paper` remap answers `--text`),
+   ruled under like a heading somebody wrote first. It is the same word the closed chip carries and
+   the same face; only the size and the ground change with the material. */
+.lcd.ledger[data-open] .lcd__head.ledger__head {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  margin: var(--space-2) var(--space-3) 0;
+  width: auto;
+  padding: 0 0 var(--space-1);
+  border-bottom: 2px solid var(--paper-line);
+}
+
+/* The mark that says something has been logged since this was last opened. A dot and no number: the
+   nonce counts pokes rather than rows, so a figure here would be a claim about how many things
+   happened that the frames cannot support. */
+.ledger__fresh {
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+/* -- the reveal ----------------------------------------------------------------------------------- */
+
+.ledger__reveal {
+  /* Above the sheet, like the head. */
+  position: relative;
+  display: grid;
+  grid-template-rows: 0fr;
+  min-height: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--duration) var(--ease),
+    visibility var(--duration);
+}
+
+.lcd.ledger[data-open] .ledger__reveal {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+
+/* The grid row's occupant. `min-height: 0` is what lets the row actually reach zero — a grid item's
+   default minimum is its content — and the clip is here so a half-revealed body is cut by the
+   housing rather than painted outside it. */
+.ledger__inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The rows, at the OPEN width always, so the width transition slides the housing across them
+   instead of rewrapping every message twice per gesture. Bounded and scrolling for the thousand-row
+   ledgers; the stack's clamp may compress it further, and the scroll is what absorbs that too. */
+.ledger__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: var(--ledger-open-w);
+  max-height: 56vh;
+  padding-bottom: var(--space-2);
+}
+
+/* -- the rows ------------------------------------------------------------------------------------- */
+
+.log__section {
+  display: block;
+}
+
+/* The two section names, one step in from the note's own title so the hierarchy reads without a
+   rule between them. They are section titles — words this window chose for two halves of a ledger —
+   and they wear `.lcd__head`, so the sans arrives without either of these rules asking. The
+   declaration is redundant and stays beside the size that is NOT redundant: a section head is a
+   level below the unit's own title and a level above its rows, and the two declarations that say so
+   belong together rather than one here and one inherited. */
+.lcd__head.log__section-head {
+  margin: 0;
+  padding-top: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+.lcd__head.log__group-head {
+  margin: 0;
+  padding-top: var(--space-1);
+  padding-bottom: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+/*
+ * EVERY ROW IN AN OPEN UNIT SHARES THE HEAD'S COLUMN, and this rule is the whole of what makes that
+ * true. A row buying its 12px inset with PADDING while the head above it buys the same 12px
+ * with MARGIN agrees about where the text starts and disagrees about everything else: the
+ * head's ruled underline stops 12px short of each edge while the row's hover wash — and, on the
+ * session list, a focus ring — runs the full width of the body, bleeding 12px past both ends of the
+ * rule it sits under. One inset, spent the same way, and the boxes line up with the line.
+ *
+ * THE WIDTH IS SUBTRACTED AND NOT SET TO `auto`, and a `<button>` is why. `.lcd__row` asks for
+ * `100%`, which with a margin either side would overhang by the whole 24px — but `auto` is not the
+ * fix, because half the rows this dresses are buttons and a button's `auto` width is shrink-to-fit
+ * rather than fill. A session row would size to its own summary, the summary would never reach the
+ * `min-width: 0` that lets it truncate, and the age would be pushed off the end of the note. The
+ * `<div>` rows next to it would be fine, which is the worst version of that bug: it shows on
+ * some rows in the same list and not others. The vertical padding is left to the row's own rules;
+ * only the sides move.
+ *
+ * NOT SCOPED TO `[data-open]`, deliberately. The body is mounted and laid out at the open width at all
+ * times (see `.ledger__body`), and a geometry that changed on the attribute would re-lay the rows on
+ * the first frame of a collapse — while they are still on screen, which is the whole reason they stay
+ * mounted.
+ */
+.lcd.ledger .ledger__body .lcd__row {
+  width: calc(100% - 2 * var(--space-3));
+  margin-inline: var(--space-3);
+  padding-inline: 0;
+}
+
+/*
+ * One row of either ledger.
+ *
+ * `align-items: flex-start` overrides `.lcd__row`'s centring, and it has to: a row here is not one
+ * line. The message wraps, the disclosure opens into a block of JSON, and a centred age would float
+ * to the middle of a paragraph instead of sitting beside its first line.
+ *
+ * There is no horizontal padding here: the rule above owns the inset for every row in an open
+ * unit, and restating it here would be a second opinion about where the column starts.
+ */
+.lcd__row.log__row {
+  align-items: flex-start;
+  padding-block: var(--space-1);
+}
+
+/* A FLOOR RATHER THAN A FIXED WIDTH, and the difference is four spellings. It is what a reader scans
+   this column for and a column that changed width per row would jitter once a minute, so the floor
+   lines the messages up — but `formatRelative` does not only say "4m": it says "just now",
+   "yesterday" and "2026-03-14" as well, and at 12px mono none of those three fits in 4.5em. Fixed,
+   they overflowed the box (no break opportunity in "yesterday") rather than truncating. The floor
+   holds the column for every ordinary age and lets the three long ones take their room.
+
+   LEFT-ALIGNED IN THAT FLOOR, and NOT right-aligned the way the session list's age is, because the
+   two ages are at opposite ends of their rows. Here the age comes first and the slack in 4.5em falls
+   between it and the scope chip, so left is what puts the ages flush against the row's own edge.
+   Right would hang them off an inner boundary the reader cannot see. */
+.log__when {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  color: var(--text-muted);
+}
+
+/* Where the error came from. Five scopes, scanned rather than read: a quiet pill in the paper's
+   own well. */
+.log__scope {
+  flex: 0 0 auto;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  font-size: 0.9em;
+  line-height: var(--leading-normal);
+}
+
+/* The server's sentence, and whatever is folded under it. It takes what is left and wraps: a
+   `min-width: 0` on a flex item is what allows that rather than pushing the row wider than the glass.
+   `anywhere` because a message can carry a path or a URL with no space in it. */
+.log__message {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+/* The deleted row's id, on the line above its JSON. */
+.log__id {
+  color: var(--text-secondary);
+}
+
+.log__details {
+  margin-top: var(--space-1);
+}
+
+.log__summary {
+  color: var(--text-secondary);
+  cursor: pointer;
+  /* The default marker is a filled triangle in the reader's own accent colour, which is the one thing
+     on this instrument that would not belong to it. */
+  list-style: none;
+}
+
+.log__summary::before {
+  content: "▸ ";
+}
+
+.log__details[open] .log__summary::before {
+  content: "▾ ";
+}
+
+.log__summary::-webkit-details-marker {
+  display: none;
+}
+
+/*
+ * A pretty-printed row, or a detail that came back as a stack.
+ *
+ * It scrolls in BOTH directions inside its own box. A deleted report carries its whole document and a
+ * deleted script its whole source, so this is the one element in the window that is genuinely
+ * unbounded; letting it size the panel would make one deletion a full-screen overlay. `pre` rather
+ * than `pre-wrap` because indentation is how JSON is read, and reflowing it would destroy the only
+ * structure the text has.
+ */
+.log__pre {
+  margin: var(--space-1) 0 0;
+  max-height: 16em;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  /* Stated although two other rules would already say it — the `pre` element rule in base.css and
+     the row this block hangs under. A deleted row's JSON is the most literal thing in the window,
+     and the face it is drawn in should be declared where the block is rather than inherited from
+     two places at once, either of which could be rewritten by somebody thinking about prose. */
+  font-family: var(--font);
+  font-size: 0.95em;
+  line-height: var(--leading-normal);
+}
+
+/* Why a section is empty, or why it may be stale — in the space the rows would have been. */
+.log__note {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+/* One page further down one ledger. Quiet, and indented to the rows it extends, because it is a
+   continuation of the list rather than an action on it. */
+.log__more {
+  margin: var(--space-1) var(--space-3) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  /* "Show more" is a word this window chose, so it takes the sans like every other button label —
+     and it has to say so for itself, because `.log__more` is not a `.btn` and it sits inside a
+     ledger body that has named the mono for its rows. */
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.log__more:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* A colour step rather than element opacity — a translucent control would show the sheet through
+   its own label, which the board's material law forbids. */
+.log__more:disabled {
+  color: var(--text-muted);
+}

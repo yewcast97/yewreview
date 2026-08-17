@@ -1,0 +1,1008 @@
+/*
+ * The conversation. Owned by ChatDock.tsx and imported only there; see base.css for the
+ * rule.
+ *
+ * One sheet for the six components that make up this surface, because they are one surface: the
+ * bubble, the tool line and the well the composer sits in share a vocabulary of radii and greys, and
+ * splitting them along the file boundary would be splitting one decision into six places to change.
+ *
+ * NOTHING IN HERE IS ABOUT WHERE THE CHAT SITS ON SCREEN, which is the useful thing to know about
+ * it. The body is a three-row grid — a scroller that takes what is left, the model pool's drawer
+ * when the opencode harness has one open, and a composer row that is always last and never moves —
+ * and it behaves the same whatever rectangle it is given. The dock's own frame is `ChatDock.css`,
+ * and its rectangle is neither file's business.
+ */
+
+/* -- the frame ---------------------------------------------------------------------------------- */
+
+.chat__body {
+  display: grid;
+  /* The list absorbs the free space; the composer is exactly as tall as the textarea has grown to.
+     THE MIDDLE ROW IS THE MODEL POOL'S DRAWER, which is mounted only on the opencode harness and
+     only while it is open — and an absent row of a `grid-template-rows` list costs nothing, so the
+     two-child case places the transcript and the composer in rows one and two exactly as before.
+     The composer's row is last in every case, which is what keeps the box from moving under
+     somebody's hands when the drawer opens. */
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The title bar's "cannot compute" pill. A modifier on the `.chip` primitive and NOT on
+   `.chat__chip` further down — that one is a record riding with the message, which is a different
+   thing wearing the same word. Written as `chip chat__chip--warn` in ChatDock.tsx. */
+.chat__chip--warn {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* -- the transcript ------------------------------------------------------------------------------ */
+
+.chat__items {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  /* Full height even when nearly empty, so the empty state has somewhere to be centred. */
+  min-height: 100%;
+  padding: var(--space-3);
+}
+
+/*
+ * The empty transcript, held in the middle of whatever height the dock has — and on a short WINDOW
+ * the arithmetic is what decides whether the invitation is on the screen at all, so it is written
+ * down. The dock is the height of the viewport less two 12px insets, the panel header takes
+ * `--header-height` 44 and the composer strip below takes about 126 — 24 of its own padding, 16 of
+ * gaps, roughly 17 for the caption, 50 for the well and 19 for the foot — which leaves this scroller
+ * the viewport less about 194. What has to fit in it is 8 of padding here, 8 on `.chat__welcome`,
+ * and 27 for the QUESTION — one 20px line at `--leading-tight` — which is 43, so the invitation
+ * stops fitting at a window around 237 tall and has some 23 spare at 260. The note under the
+ * question is deliberately NOT in that sum: it is the second line of an empty state, it is scrolled
+ * to rather than guaranteed on screen, and budgeting for it would mean shrinking the question that
+ * has to be there. That is why both paddings are as small as they are — inside an empty state the
+ * air comes from the centring, and padding is height spent rather than space around anything.
+ *
+ * `safe` is why this is not a plain `center`. Content centred in a box shorter than itself overflows
+ * at BOTH ends, and the half above is then unreachable, because no scroller scrolls above its own
+ * start — the reader would be left with the end of a sentence and no way back to its beginning. In a
+ * dock that is short and narrow at once the question wraps and can do exactly that, and `safe` says
+ * to fall back to the start alignment the moment it no longer fits, where every line of it can still
+ * be scrolled to.
+ */
+.chat__items--empty {
+  align-content: safe center;
+  padding: var(--space-1) var(--space-3);
+}
+
+.chat__empty {
+  padding: var(--space-4) var(--space-5);
+}
+
+.chat__empty p {
+  margin: 0;
+  max-width: 30ch;
+}
+
+/*
+ * The invitation, and the only thing in the window when nothing has been said yet.
+ *
+ * One sentence, large and quiet, sitting where the first line of the conversation will — not a
+ * heading with a paragraph under it. There is nothing to explain here: the composer below it is the
+ * answer, and a screenful of instructions above an empty box is a product that does not trust its
+ * own affordance. The two empty states that DO have something to say — still opening, did not load —
+ * keep `.chat__empty` above, because each of them is telling the reader something they cannot guess.
+ *
+ * It is held vertically in the middle of the transcript and aligned LEFT within it, which is where
+ * the message that replaces it will start. A centred invitation jumps sideways the moment anybody
+ * answers it.
+ *
+ * IT HAS ALMOST NOTHING ABOVE AND BELOW IT OF ITS OWN, which is not a smaller idea of the space
+ * around the question. The space is the blank half of the scroller on either side, put there by the
+ * centring on `.chat__items--empty` — padding written here is height this block spends instead, and
+ * at the dock's minimum that height is the difference between a question on the screen and a
+ * question scrolled off the top of it. The arithmetic is on that rule.
+ *
+ * IT NAMES NO RECORD, so there is no underlined span for the one word in the sentence that
+ * would change. The conversation belongs to the installation, and the question is the same every
+ * time.
+ *
+ * IT DOES CARRY ONE LINE UNDER THE QUESTION, which is the exception the paragraph above earns rather
+ * than contradicts. Nothing in this window writes to the database, so every record in the archive is
+ * set up by asking in this box — and that is precisely the kind of thing a reader cannot guess and
+ * will not discover, because the `+` buttons say it in a tooltip nobody hovers before their first
+ * sentence. It is one line, in the ordinary muted ink, so the question is still the thing on screen.
+ */
+.chat__welcome {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-5);
+  text-align: left;
+}
+
+.chat__welcome-line {
+  margin: 0;
+  /* Roughly two lines of the sentence in the narrowest panel this window allows. Wider than that
+     and the question stops reading as one line of speech. */
+  max-width: 26ch;
+  color: var(--text-secondary);
+  /* A sentence this window wrote, so the sans — and a size and a weight retuned for it. At 1.5rem a
+     handwriting face read as one line of speech written large; a sans at that size reads as a
+     heading, which is exactly what this block refuses to be. 20px at 500 is the same emphasis said
+     by weight, which this face can actually draw. */
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: var(--leading-tight);
+}
+
+/* The one thing under the question. Muted and small, in the sans like the sentence above it, and
+   wider than that sentence because it is a fact rather than a line of speech — it should read as a
+   note in the margin of the invitation, not as a second invitation. */
+.chat__welcome-note {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* An aside between messages. Left-aligned with the prose it sits among, and inset from the
+   transcript's own padding so it does not start on the same pixel a message bubble does — an aside
+   that lines up exactly with the conversation reads as part of it. */
+.chat__notice {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: left;
+}
+
+/*
+ * Where the SDK folded the history into a summary.
+ *
+ * A RULE THROUGH THE MIDDLE OF THE STREAM with a few words sitting on it, drawn with the same border
+ * both panels use for a hairline. It has to be findable — the reader scrolling up past it is about to
+ * find that the conversation starts abruptly, and this is the sentence that explains why — and it must
+ * not read as an alarm, because nothing went wrong: a long conversation being summarised is the
+ * mechanism working. So it is the muted grey every other aside in this transcript wears, and it is
+ * smaller than the prose around it.
+ *
+ * The gradient is a border that stops before the edges: a line running the full width would read as a
+ * separator between two documents, where what happened is one conversation losing its own beginning.
+ *
+ * IT IS WHAT BOUNDS THIS LIST AT THE TOP, and it is the only thing that has to. There are no pages:
+ * the route answers the whole conversation, so nothing above it is holding a line box open against a
+ * page about to be prepended, and nothing here has to keep the document still under a reader who has
+ * scrolled to the beginning.
+ */
+.chat__folded {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-style: italic;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.chat__folded::before,
+.chat__folded::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  min-width: 0;
+  background: var(--border);
+}
+
+/* The words sit near the left edge like everything else in this transcript, so the leading rule is
+   a stub rather than half the width. It has to be there at all: a label with a rule only on its
+   right reads as a heading with an underline that slipped. Written after the shared rule above
+   because it is overriding one of that rule's own declarations. */
+.chat__folded::before {
+  flex: 0 0 var(--space-4);
+}
+
+/* -- messages ------------------------------------------------------------------------------------ */
+
+.chat__msg {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chat__msg--user {
+  justify-items: end;
+}
+
+/*
+ * The person's words in a bubble; the agent's on the page itself.
+ *
+ * Only one side is enclosed on purpose. What the user said is a short, finished thing worth marking
+ * off; what the agent says is a document — headings, tables, code — and putting a document in a
+ * speech bubble in a 420px column would spend a quarter of the width on the bubble.
+ */
+/* A scrap of the yellow pad, square-cut: what the person said is written on paper even here, the way
+   a note pushed across a desk is. The hexes are `paper.css`'s yellow colourway; no deckle in a
+   transcript that can hold dozens of these — the torn edge is a filter per element, and a square-cut
+   scrap reads as torn-off anyway. */
+.chat__bubble {
+  max-width: 92%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 2px;
+  background: #fdf3a6;
+  color: #3a332b;
+  box-shadow: var(--shadow-paper);
+  /* THE SANS, because this is a MESSAGE. That every byte of it went on the wire is true and is not
+     the question the font rule asks: what a person typed here is read as speech, in paragraphs, and
+     a proportional face is what running prose is for. The precision the mono buys is spent where it
+     is needed instead — a mention inside this bubble is a pill drawn in the mono by
+     `markdown.css`, so the one part of the message that is an identifier still says so. */
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  /* The newlines somebody typed are the only formatting a composer offers, and they are kept. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Sent, and not yet acknowledged by a turn starting: the same scrap on a duller sheet, in ink one
+   step lighter — never element opacity, which would show the transcript through the paper, and
+   never below 4.5:1, because these are exactly the words the reader is checking arrived (5.3:1).
+   The ink is a bespoke blend and deliberately darker than the yellow colourway's own `--paper-mut`
+   (#655d46): that token was checked for 12px furniture, and this is body text. */
+.chat__bubble--pending {
+  background: #eae09a;
+  color: #5f5741;
+}
+
+.chat__meta {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+}
+
+.chat__msg--user .chat__meta {
+  justify-content: flex-end;
+}
+
+/*
+ * Take the whole answer. Furniture in the meta row until the pointer is on it, and PRESENT whether
+ * or not it is: the argument this sheet makes at `.chat__chip-remove` holds here too — a control
+ * revealed by hover is a control a keyboard cannot find and a touch screen cannot summon, and this
+ * one sits under every settled thing the agent said.
+ *
+ * NO RESERVED WIDTH ANY MORE, and its going is the whole point of the glyph. This used to print the
+ * word "copy" and swap it for "copied", so it held a `6ch` floor to stop the row twitching by two
+ * characters under the pointer at the moment of pressing it — `.codeblock__copy` still does, and
+ * still needs to. A mark has one geometry in both states: the acknowledgement is a fill, nothing
+ * reflows, and what a reader sees beside an answer is 16 pixels rather than a word competing with
+ * it. What the control MEANS is on its `aria-label` and its `title`, which is where a sentence
+ * belongs when the button is a picture.
+ */
+.chat__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  transition:
+    background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.chat__copy:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The mark itself, inheriting the button's colour so hover moves both together. It is drawn at the
+   size it is meant to be seen — see `CopyGlyph` in `AssistantMessage.tsx` on why it is a path
+   rather than one of the unicode candidates. */
+.chat__copy-glyph {
+  display: block;
+}
+
+/* COPIED IS THE SAME MARK, FILLED. A shape rather than a word, on the argument the subagents toggle
+   makes further down this sheet: the state is legible without reading anything, it cannot reflow the
+   row, and it fades back to the outline on its own as `useCopied` lets the flag lapse. */
+.chat__copy--copied {
+  color: var(--accent);
+}
+
+.chat__copy--copied .chat__copy-glyph path,
+.chat__copy--copied .chat__copy-glyph rect {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* The agent's prose and the mention pills moved to `markdown.css` when rendered markdown became
+   one component (`MarkdownView`) with a second consumer — see that sheet's header. */
+
+/* -- tool lines --------------------------------------------------------------------------------------- */
+
+/* THE MONO FOR THE WHOLE LINE, both halves of it. The name is the SDK's own identifier for a tool,
+   and the summary beside it is not a sentence anybody composed — `toolSummary` in
+   `agent/session.ts` lifts one argument straight out of the call, so what lands here is a record id,
+   a file path, a URL, a shell command or a search pattern. This line is the audit trail of what the
+   agent did, and every string on it is the machine's exactly.
+
+   EVERY TRACK BUT THE MARK IS FLOORED AT ZERO. A bare `auto` column takes the whole of its content's
+   min-content width before the column beside it gets anything, and a tool name is one unbroken word
+   the SDK qualifies — `mcp__yewreview__create_information_source` is wider than the dock is at its
+   narrowest, so the summary would be crushed to nothing and the line would run out of the panel
+   anyway. Floored, the two columns divide what there is and the name breaks (see
+   `.chat__tool-name`); at every ordinary width the name is still drawn at its natural size and the
+   summary still takes what is left, because `auto` is what the track grows to when there is room. */
+.chat__tool {
+  display: grid;
+  grid-template-columns: 14px minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+}
+
+.chat__tool-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--text-muted);
+  /* Held on the text baseline so the mark does not float above a summary that wrapped to two
+     lines. */
+  transform: translateY(1px);
+}
+
+.chat__tool[data-status="ok"] .chat__tool-mark {
+  color: var(--ok);
+}
+
+.chat__tool[data-status="failed"] .chat__tool-mark,
+.chat__tool[data-status="failed"] .chat__tool-summary {
+  color: var(--danger);
+}
+
+/* Takes `--text-xs` from `.chat__tool` rather than shaving a further 0.95em off it: that landed at
+   11.4px, below the smallest step the scale defines.
+
+   IT BREAKS ANYWHERE, like the summary beside it, because there is nowhere else for it to break: an
+   SDK tool identifier is one word joined with underscores, so the only wrap opportunity a line-break
+   rule would find is the end of the string. `anywhere` rather than `break-word` is the load-bearing
+   half — it is the one of the two that also lowers the min-content width, which is what the zero
+   floor on the track above needs in order to mean anything. */
+.chat__tool-name {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.chat__tool-summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat__thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* A ring rather than a pulse: `prefers-reduced-motion` stops the rotation (base.css), and a stopped
+   ring still reads as unfinished where a stopped pulse would read as nothing at all. */
+.chat__spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  animation: chat-spin 700ms linear infinite;
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* -- a published report ---------------------------------------------------------------------------------- */
+
+/* A published report in the stream is a scrap of the pink pad — the derived family's paper, the
+   same hexes `paper.css` mixes — because what it links to opens as exactly that note. */
+.chat__report {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: 2px;
+  background: #fcd7de;
+  color: #3a332b;
+  box-shadow: var(--shadow-paper);
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+/* `:not(:disabled)` like every other hover in this sheet: a disabled control does not answer the
+   pointer with a change of fill. */
+.chat__report:hover:not(:disabled) {
+  background: #eeccd1;
+}
+
+/* The mono: this is the report record's own title as published, which is the string a reader will
+   look for in the graph and on the note it opens as. */
+.chat__report-title {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -- a file handed over -------------------------------------------------------------------------- */
+
+/*
+ * A file named in the conversation, in either direction — one the agent wrote, or one the reader
+ * dropped in and can now take back out.
+ *
+ * THE LINEN PAD, which is `paper.css`'s plain sheet with no hue in it at all, and the tint is the
+ * whole of what tells this apart from the report chip a few rules up. That one is pink because it
+ * opens as exactly that note; this one opens nothing — a file is in no table, nothing cites it, and
+ * it leaves the window altogether — so it is drawn on the paper that belongs to no family. Two
+ * scraps of the same colour in one transcript would be a reader clicking a download expecting a
+ * report, which is the one confusion worth spending a colourway on.
+ *
+ * It is an anchor rather than a button (see `AttachmentChip.tsx`), so the two things every other
+ * link in this window gets are cancelled here: the accent ink, which belongs to a link inside a
+ * sentence rather than to a scrap of paper, and the hover underline, which would draw a line under a
+ * whole chip. The hover is the fill changing, exactly as it is on the report beside it.
+ */
+.chat__file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border-radius: 2px;
+  background: #e9e5dc;
+  color: #3a332b;
+  box-shadow: var(--shadow-paper);
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.chat__file:hover {
+  background: #ddd9d0;
+  text-decoration: none;
+}
+
+/* Inside the bubble there is no grid to space this off the words above it — the message is one
+   run of pre-wrapped text — so the chip states its own separation there and nowhere else. In the
+   transcript `.chat__msg`'s gap already does it, and a margin here would be that gap twice. */
+.chat__bubble .chat__file {
+  margin-block: var(--space-1);
+}
+
+/* The mono, and the base name only: this is a filename, which is the machine's string rather than
+   this window's vocabulary, and the reader recognises `q3-earnings.pdf` where the directory above it
+   is machinery. The whole path is on the `title`. `nowrap` also stops the bubble's `pre-wrap` from
+   reaching in and breaking a name at whatever whitespace it holds. */
+.chat__file-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -- the dock ------------------------------------------------------------------------------------------- */
+
+/*
+ * The floor the composer lies on, and nothing else — no rule across the panel.
+ *
+ * The padding here IS the composer's margin: the card below floats free of all four panel edges
+ * rather than being a strip bolted to the bottom of it, and a border-top drawn behind a card that is
+ * already lifted off the surface would be a second, contradicting statement about where the
+ * conversation ends. What separates the transcript from the composer now is the gap and the card's
+ * own shadow.
+ */
+.chat__dock {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+/*
+ * How this conversation is answered: which model, how hard it is asked to work, and whether it may
+ * bring help. Nothing else — the conversation belongs to no one record.
+ *
+ * Outside the card and above it, in muted type with no borders — a caption on the composer rather
+ * than another row of controls. It is said here rather than as a chip in the panel header because
+ * this is where it is read, at the moment somebody is about to say something and wants to
+ * know what they are saying it to. The header keeps the title and, when there is one, the status.
+ *
+ * A FLEX ROW FOR THREE ITEMS, AND THE ROW IS WHAT SHRINKS THEM. A model identifier is as long as
+ * whoever named it made it, and a level and the delegation word are each one short word, so all
+ * three are given the same rule — shrink, then clip — rather than a fixed share each: this is what
+ * keeps them on one line whatever the dock is wide. A caption that wrapped would grow the dock, and
+ * every pixel the dock takes comes out of the transcript.
+ *
+ * THE MONO, AND IT IS THE STRIP RATHER THAN THE WORDS THAT DECIDES IT. What is written here is a
+ * model identifier and an effort level — the SDK's vocabulary, not this window's, and a model id is
+ * exactly the kind of string where one character being the character it is settles which model
+ * answered. The two pickers and the toggle below inherit from this rule, so a changeable word and
+ * the caption around it are the same line of type — which is also the whole reason those controls
+ * name no face of their own.
+ */
+.chat__context {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+.chat__context-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* Shrinks, and the text inside it truncates: a model identifier is as long as somebody made it. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.chat__context-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The two pickers, and the one thing this strip has to say about them.
+ *
+ * EVERYTHING ELSE ABOUT THEM IS `Picker.css`. They arrive already dressed as the caption they
+ * replaced — no border, no ground, no face of their own, the cursor and the hover carrying the
+ * whole affordance — because that component is drawn for exactly this: a word in a line of prose
+ * that can be changed. What is left here is a WIDTH, which is a fact about this strip rather than
+ * about a picker. A model identifier is as long as whoever named it made it, so it is capped at
+ * roughly the width the caption can spare and cut short after that; a level is one short word, and
+ * a cap that would let it grow to a model's width is a promise about a string that cannot happen.
+ * The two numbers differ, which is why this is two rules where the sheet they replaced had one.
+ *
+ * A caption that wrapped would grow the dock, and every pixel the dock takes comes out of the
+ * transcript — the flex rule above is what shrinks these, and these are what stop the shrinking
+ * from having to go any further.
+ */
+.chat__model .picker__trigger {
+  max-width: 22ch;
+}
+
+.chat__effort .picker__trigger {
+  max-width: 12ch;
+}
+
+/*
+ * The delegation toggle, third in the line and a peer of the two pickers.
+ *
+ * SAME FACE, SAME INK, SAME HOVER, which is the point: it is one more changeable word in the
+ * caption, and a button that announced itself with a border or a fill would break the line into a
+ * word, a word, and a control. The pressed state is `aria-pressed`, so the selector is the same
+ * attribute a screen reader reads — a rule keyed on anything else would be this window keeping a
+ * second, private opinion about which way the switch is set.
+ *
+ * OFF IS THE WORD CROSSED OUT, and it is a shape rather than a shade for the reason the health
+ * lamps square off their corners: a state told only by an ink one step quieter is a state half the
+ * readers of this window cannot see, and this one is normally ON — so the plain word is the usual
+ * sight and the struck one has to be unmistakable at a glance. It is also simply how anybody
+ * writing on a board says not this.
+ */
+.chat__subagents {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.chat__subagents[aria-pressed="false"] {
+  text-decoration: line-through;
+}
+
+.chat__subagents:hover:not(:disabled) {
+  color: var(--text-secondary);
+}
+
+/* The pickers' own disabled state, restated for the toggle beside them: the `title` says why, and
+   the cursor stops the reader pressing it to find out. */
+.chat__subagents:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/*
+ * The word that opens the model pool, last in the line and on the opencode harness only.
+ *
+ * THE SAME SHAPE AS THE TOGGLE ABOVE IT — no border, no ground, no face of its own — because it is
+ * one more word in a caption and a bordered button would break the line into three words and a
+ * control. What it is NOT is a second `aria-pressed` toggle: this one opens a panel, so it says
+ * `aria-expanded`, and the state it reports is drawn as the panel BEING THERE rather than as
+ * anything about the word. That is why there is no `[aria-expanded="true"]` rule under this one: the
+ * pool is a slate the width of the dock sitting immediately above this line, which is not a thing a
+ * reader can fail to notice, and underlining the word as well would be the window saying it twice.
+ *
+ * It is never disabled — see the markup in `Composer.tsx` — so there is no dimmed state to write.
+ */
+.chat__models {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.chat__models:hover {
+  color: var(--text-secondary);
+}
+
+/*
+ * Drawn rather than typed. The dingbats this window uses elsewhere — ✎, ✕, ↑ — are characters every
+ * system ships; a four-point star is not, and the code points that come closest arrive as a colour
+ * emoji on one machine and a blank box on the next. Twelve pixels, `currentColor`, so it takes the
+ * muted grey of the strip it sits in.
+ */
+.chat__context-glyph {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chat__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* `.toasts__item`'s exactly: same anatomy — a sentence at the top with a 28px dismiss at the end,
+     12px in on the text side — and the two had drifted to 4px against 8 on the other three edges. */
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.chat__error-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The well. One bordered shape holding the chips, the box and the button, the way the whole composer
+ * is one control.
+ *
+ * A stack rather than a row now: the chips are a line of their own above the words, and they are
+ * INSIDE this border because they are part of the message being written — a row of pills floating
+ * above the well would read as something the composer had found rather than something it is holding.
+ *
+ * It is CHALKED, not floated: a solid dust fill with the working chalk ruled around it, sitting in
+ * the dock's well the way a box drawn inside a bigger box does. No shadow — chalk has no thickness
+ * — and the border is 2px because chalk never draws at one.
+ */
+.chat__composer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  /* The control token: this rounded edge is the whole shape of the composer, and a hairline meant
+     for separating two panels is not enough to say "type here". */
+  border: 2px solid var(--border-control);
+  /* A step past the panel's own `--radius-lg`. A card sitting inside another rounded box has to be
+     rounder than it, or the two corners read as a mistake rather than as one inside the other. */
+  border-radius: calc(var(--radius-lg) + 4px);
+  background: var(--bg-panel);
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease);
+}
+
+/* The box and the button are one line however tall the box has grown: `flex-end` keeps the button on
+   the LAST line of what was typed, where the writing left off. */
+.chat__entry {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+/* The focus indicator belongs to the well, not to the textarea inside it — a ring drawn around a
+   borderless box that already sits inside a bordered one reads as two controls. The yellow stick
+   re-draws the box; the zero-blur ring is opaque paint, not a glow. */
+.chat__composer:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+
+/* Something is over the composer and will land in it — a record as a chip above the box, anything
+   else as text at the caret. One highlight for both, because from here they are the same promise:
+   let go and this is where it goes. */
+.chat__composer--drop {
+  border-color: var(--focus);
+  background: var(--info-bg);
+}
+
+/* -- the records riding with the message ---------------------------------------------------------- */
+
+/*
+ * The chips row: what this message will carry, above the words that will say what to do with it.
+ *
+ * WRAPS, and then scrolls. The composer's height is the conversation's loss — the textarea already
+ * stops growing at eight lines, measured in Composer.tsx — and a dozen records dragged in must not be
+ * able to push the transcript off the top of the panel. Three lines of pills is generous for a
+ * gesture that is usually one or two.
+ *
+ * THE SCROLLING IS DRIVEN, in Composer.tsx, and this cap is only honest with that effect beside it.
+ * Three lines fit this height so exactly that a fourth is not a half-cut pill hinting at more but a
+ * line that is simply not on screen, and nothing in a browser scrolls a box to what was just appended
+ * to it. Left alone, this rule turns a paste of ten screenshots into three lines of them and a
+ * gutter — `base.css` draws a scrollbar on any box holding more than it shows, so the overflow is
+ * admitted. Admitting it is not the same as showing somebody the thing they just handed over.
+ */
+.chat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-height: 5rem;
+  overflow-y: auto;
+}
+
+/*
+ * Built on the `.chip` primitive and re-grounded: `--info-bg` under `--info`, the same pairing the
+ * drop highlight above uses. A record that has just landed is drawn in the colour of the landing,
+ * and the row reads as one thing rather than as several grey tags that could be anything.
+ *
+ * The right padding is the ×'s: the pill ends where the button does.
+ *
+ * THE MONO, WHICH `.chip` DOES NOT TAKE. The base pill carries this window's vocabulary — a table's
+ * name, a connection state — and inherits the sans for it. What is in this one is a record's own
+ * name out of the database, on its way into a message as a mention: an identifier the reader is
+ * checking they dragged the right one of, and the same string the pill in the sent bubble will be
+ * drawn from.
+ */
+.chat__chip {
+  padding: 1px 1px 1px var(--space-2);
+  border-color: var(--focus);
+  background: var(--info-bg);
+  color: var(--info);
+  font-family: var(--font);
+}
+
+/* A dropped file whose bytes are still going up. Quieter chalk rather than a faded chip — element
+   opacity is not something this window uses (see `styles/tokens.css`), and the ink a thing is drawn
+   in is where its quietness belongs. It reads as not-yet rather than as broken, which is what it is:
+   the send button is waiting on exactly these. */
+.chat__chip--pending {
+  border-color: var(--border);
+  background: var(--bg-subtle);
+  color: var(--chalk-dim);
+}
+
+/* The body of the chip is a control, and what it does is open the record as a card in the panel
+   beside this window — so a chip is inspectable before it is sent rather than only a name somebody
+   hopes is the right row, and inspecting it costs nothing that was already open. */
+.chat__chip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* The same box on a chip that is not a button. A DRAFT chip names no row, so there is nothing for a
+   click to open — what it is a copy of is the card the reader dragged it from, which is on screen
+   already. The cursor is what says so: a pill that looked identical and did nothing would read as a
+   control that is broken rather than as a label. */
+.chat__chip-open--flat {
+  cursor: default;
+}
+
+.chat__chip-open:hover .chat__chip-label {
+  text-decoration: underline;
+}
+
+/* The one thing in the pill allowed to be cut short: a label is prose and can be any length, and the
+   hint beside it is the part that says WHICH record this is. */
+.chat__chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat__chip-hint {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+/*
+ * The ×, and it is visible whenever the row is.
+ *
+ * Not revealed on hover. A control that appears under the pointer is a control a keyboard cannot
+ * find and a touch screen cannot summon — and this is the only way to take back a record that was
+ * dropped in by mistake, which is exactly the moment somebody is looking for it.
+ */
+.chat__chip-remove {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: inherit;
+  font-size: var(--text-sm);
+  line-height: 1;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.chat__chip-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The height is INLINE, measured and set by Composer.tsx against the wrapped content — a box that
+   grows to what was typed cannot be sized from a stylesheet. The ceiling lives there with the
+   measurement rather than being repeated here, where the two could drift apart. */
+.chat__area {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  /* The sans, matching the bubble the words land in: a message is prose while it is being written
+     for the same reason it is prose once it has been sent, and the one thing that must not happen
+     here is a reflow into a different face at the moment somebody presses send. The records a
+     message carries do not come through this box at all — they ride as chips on the row above it,
+     drawn in the mono, and are serialised into the text only at send. */
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  /* Grown by measurement, not by drag: a handle here would fight the automatic height. */
+  resize: none;
+  /* Scrolls only at the eight-line cap, and takes the window's own scrollbar when it does — there
+     is no exception here and there was nearly one. What made an EMPTY composer wear a thumb was
+     never this rule but the half pixel `scrollHeight` rounds away upstream, answered where it is
+     measured; see the height effect in Composer.tsx. */
+  overflow-y: auto;
+}
+
+.chat__area:focus-visible {
+  outline: none;
+}
+
+/* One step above muted: the placeholder sits on the composer's dust fill, where the muted chalk
+   measures a hair under 4.5:1 and this clears it. */
+.chat__area::placeholder {
+  color: var(--text-secondary);
+}
+
+.chat__area:disabled {
+  cursor: not-allowed;
+}
+
+.chat__send {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--text-md);
+  line-height: 1;
+  transition:
+    background var(--duration-fast) var(--ease),
+    opacity var(--duration-fast) var(--ease);
+}
+
+.chat__send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* A colour step, never element opacity — the material law. */
+.chat__send:disabled {
+  background: var(--bg-active);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* Stop is the same button in the same colour with a square in it. It is not destructive — the turn
+   is recorded either way — so it is not dressed as a warning. */
+.chat__stop-mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Inset by the card's own padding, like the context strip above it, so the two quiet lines frame the
+   card on the same two verticals instead of on three.
+
+   NO FACE IS NAMED, WHICH IS A CALL RATHER THAN AN OVERSIGHT. What is written here is two sentences
+   that happen to be ABOUT keys and a count — "Enter sends · Shift+Enter starts a line", "2 of 8
+   waiting" — and the font rule puts a keyboard shortcut in the mono when it is drawn as one. These
+   are not drawn as ones: `Composer.tsx` writes them as running text, so they read as the sans they
+   are set in. A key name that ever wants the mono here should be marked up as `<kbd>`, and the
+   element rule in base.css will hand it over without this rule changing at all.
+
+   IT WRAPS, WHICH IS THE ONE PLACE IN THIS CARD A SECOND LINE IS THE RIGHT ANSWER. The two halves
+   are two separate sentences rather than one line with a gap in it, and at the dock's narrow end
+   they do not both fit — unwrapped they meet in the middle and the shorter one is the one that has
+   just appeared, which is the count of turns the reader is waiting on. A line of foot is cheap; a
+   count with its first characters run over is not. The count is also usually absent, so at every
+   ordinary width `space-between` still puts the one sentence there is on the left. */
+.chat__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/*
+ * THERE IS NO BREAKPOINT IN THIS SHEET, and the absence is deliberate.
+ *
+ * Shedding a step of padding below 960px would make sense for a panel in a grid that hands it a
+ * definite 480px, where the same pixels cost a far larger share of the transcript. The chat is not a
+ * panel in a grid: it is a dock whose whole rectangle comes from `dockRect` in `state/chatDock.ts`,
+ * which is a fraction of whatever the window is and follows it continuously — there is no width at
+ * which the arithmetic starts biting, only a window that is narrower than it was. A media query here
+ * would have to name a viewport, and the only numbers worth naming are the ones that module owns.
+ * Two copies would agree until one was tuned.
+ *
+ * WHICH IS WHY EVERY RULE IN THIS SHEET HAS TO READ AT THE NARROW END. The split is the reader's
+ * now, over a continuous range from a third of the window to two thirds, so a dock a third of a
+ * laptop wide is an ordinary posture rather than an unlucky screen: nothing here may rely on a width
+ * it was not given, and anything that would overflow has to wrap, ellipsize or scroll instead.
+ */

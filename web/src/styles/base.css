@@ -1,0 +1,523 @@
+/*
+ * The element defaults, the app shell, and the primitives every panel shares.
+ *
+ * ── THE STYLESHEET CONVENTION, WHICH IS NOT OPTIONAL ─────────────────────────────────────────────
+ *
+ * This file, `tokens.css` and the MATERIAL sheets in `styles/` are the only shared stylesheets.
+ * Every panel owns a `.css` file next to its component and imports it from that component —
+ * `NoteBoard.tsx` imports `NoteBoard.css`, and nothing else does. There is no `components.css`,
+ * deliberately: the panels are written by different hands at different times, and one shared sheet
+ * is where a selector written for a chat bubble silently restyles a record row six months later. A
+ * panel that needs a rule only it uses writes that rule in its own file; a panel that needs a rule
+ * EVERY panel uses has found something that belongs down here, and moving it down is a decision
+ * rather than a habit. A material more than one panel is made of — paper, chalk — is a `styles/`
+ * sheet imported by its consumers, which is the same decision made for a different reason: the
+ * material must not fork.
+ *
+ * Class names are BEM-ish and prefixed by the panel: `.viewer__frame`, `.chat__composer`,
+ * `.graph__row`. Two panels cannot collide if both do that, and a stray `.row` in a panel file
+ * announces itself as a bug on sight. `viewer__` is the note stack's prefix even though that surface
+ * is not a viewer of one record: a prefix is an ADDRESS rather than a description,
+ * and it only has to be unique. `NoteBoard.css` makes that argument where the classes live.
+ *
+ * Everything below is either an element default, the shell, or a primitive with more than one
+ * panel already asking for it.
+ */
+
+/* -- element defaults ------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* The slate behind everything, which is what shows before the board mounts. There is no frame, so
+     the thing behind the board is the board. */
+  background: var(--board);
+  color: var(--text);
+  /* The SANS is the default, because most of what is on screen at any moment is this window
+     talking — labels, titles, buttons, the conversation — and the technical data that wants the
+     mono is a named minority of rules that ask for it. Inheritance therefore serves the majority
+     and every mono rule states itself, which is also the honest arrangement: the face a stored
+     value is drawn in is a decision, and a decision should be written where it is made. */
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  /* LIGATURES OFF, everywhere, and it is a decision rather than a default. Half these panels are
+     audit surfaces that promise to show stored bytes as stored, and a `->` fused into an arrow
+     glyph is the window editing what it displays. A real terminal is a character grid; the
+     ligature is an IDE affectation. One declaration to flip if that ever changes. */
+  font-variant-ligatures: none;
+  /* The window is a fixed workspace; the page itself never scrolls, only panels do. */
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--focus);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* LOAD-BEARING AGAIN, now that the body supplies the sans. Left to the UA these three would fall to
+   whatever the platform calls `monospace`, and a `<kbd>` or an inline `<code>` set in a foreign mono
+   beside this window's own is the one place a reader would see two monospaces at once. Naming the
+   family here is also what lets every prose rule in the window be written as prose and still have
+   its code come out right. `font-size: 1em` cancels the UA's own monospace size adjustment and
+   nothing more; no further shave is declared, because a correction for how this mono reads beside
+   this sans would be a number nobody has measured, and a figure that looks measured is worse than
+   none. */
+code,
+pre,
+kbd {
+  font-family: var(--font);
+  font-size: 1em;
+}
+
+/* -- focus ------------------------------------------------------------------------------------- */
+
+/*
+ * One ring, on keyboard focus only, and always OUTSIDE the element.
+ *
+ * `:focus-visible` rather than `:focus` because a mouse user clicking a record row does not need to
+ * be told where they clicked; a keyboard user walking the same rows needs nothing else. The offset
+ * is what keeps the ring legible against a row that is already highlighted — an inset ring on a
+ * hovered row disappears into it.
+ */
+:focus {
+  outline: none;
+}
+
+/* No `border-radius` here, deliberately. This rule matches EVERY element in the window, and a
+   radius on it is geometry rather than a ring: the first pill-shaped control that does not
+   re-declare its own corners — or any reorder of the component imports in `main.tsx` — would come
+   out a 6px-rounded square on keyboard focus. With an offset the ring already follows each
+   element's own corners. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* -- scrollbars --------------------------------------------------------------------------------- */
+
+/*
+ * Thin, and drawn on any surface holding more than it is showing. Styled rather than left native
+ * because the native macOS overlay bar is invisible until it moves, and a panel whose content
+ * overflows must say so while the pointer is nowhere near it.
+ *
+ * THE `::-webkit-` RULES CARRY THAT, AND THE STANDARD PROPERTIES ARE FENCED AWAY FROM THEM. The two
+ * are rival spellings of one request and Blink will not take both: an element with a
+ * `scrollbar-width` or a `scrollbar-color` of its own is styled by those, and its `::-webkit-`
+ * rules are dropped whole. Stated side by side — which is how this block read until the fence
+ * arrived — the standard pair wins, and what it wins back is the OVERLAY bar this rule was written
+ * to refuse: nought pixels of gutter, nothing painted at rest. The ten below had never once been
+ * drawn, so every scroller in the window was silent about its own overflow while claiming here not
+ * to be.
+ *
+ * Hence bare `::-webkit-` rules, and the standard pair fenced into Gecko — asked for POSITIVELY, by
+ * a property no other engine has ever had. The obvious fence is `@supports not
+ * selector(::-webkit-scrollbar)`, and it is a trap: Firefox 153 began REPORTING that selector as
+ * supported without implementing the styling, so that scrollbars hidden by `display: none` in
+ * nested scrollers would stop stacking. A negative question therefore answers "this engine paints
+ * these" for an engine that paints none of them, and Firefox would silently lose the only spelling
+ * it can read. Any not-supported query is one compatibility alias away from flipping that way;
+ * `-moz-orient` cannot start being true somewhere else.
+ *
+ * A custom scrollbar takes real layout width, which is most of the point: the gutter arrives the
+ * moment a box holds more than it shows, so the box changes SHAPE rather than only its contents,
+ * and says so from across the window. NOTHING in this window opts out of that, and the one box that
+ * nearly had to — the composer's textarea — was answered where the overflow was made instead, half
+ * a pixel of it, in Composer.tsx.
+ */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-control);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: content-box;
+}
+
+/* The square where a horizontal bar meets a vertical one — laid out only when BOTH are there, which
+   is rarer than it sounds: a code block has to be wider than its column AND taller than its cap, and
+   the other two are the deletion ledger's JSON and the model pool's shelf. Left unsaid, Blink fills
+   that square WHITE, on a dark window. Nothing is drawn in the corner; it is track, and the track
+   here is nothing. */
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* The other engine's spelling of everything above, and unreachable in this one. The control token
+   rather than the divider one: a thumb at a divider's weight is a control the eye cannot find,
+   which is the whole thing this rule exists to fix. */
+@supports (-moz-orient: inline) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-control) transparent;
+  }
+}
+
+/* -- the shell ---------------------------------------------------------------------------------- */
+
+/*
+ * One board, the full size of the window, edge to edge.
+ *
+ * THERE IS NO FRAME AND THE SHELL PAINTS NOTHING. A wooden surround — the shell's own padding, a
+ * vertical light-to-dark run with the grain striped over it, a chalk tray resting on its inner edge —
+ * is a good drawing of a blackboard that costs the board twenty-two pixels on every side to say
+ * something the reader learns once and then looks past. What a frame is FOR is telling you where the
+ * board stops; when the board is the whole window, the glass already does that.
+ *
+ * So the shell is furniture with no appearance: a grid of exactly one cell, which is what stretches
+ * the board to the window's height without the board declaring a height of its own, and a guarantee
+ * that the page itself never scrolls. Everything else in the window is `position: fixed` and out of
+ * this flow; what keeps THOSE off the glass is `--float-inset`, which is a margin they each keep for
+ * themselves rather than a frame they are all sitting inside.
+ */
+.app {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+/* -- panels ------------------------------------------------------------------------------------- */
+
+/*
+ * The one surface primitive. A panel is a white card on the paper ground with a hairline border,
+ * and it is a grid of [header, body] so its body scrolls under a header that does not move.
+ *
+ * A panel wanting different rows must say so as `.panel.thing`, never as `.thing`. The bundler
+ * emits each component's stylesheet BEFORE this one — the import order in main.tsx does not
+ * survive it — so a bare single-class rule loses to the two lines below on source order alone and
+ * the panel silently collapses to two rows. Equal specificity is the trap; the extra class is the
+ * whole fix.
+ */
+/* No card chrome: the one `.panel` in this window is the conversation dock, which paints its own
+   material (`ChatDock.css`), so the primitive keeps only its bones — the header/body grid and the
+   clip. */
+.panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--header-height);
+  padding: 0 var(--space-3);
+}
+
+/* The one panel is the conversation dock, and its title is the SDK's own summary of the
+   conversation — a short line of prose the model wrote about what is being discussed, not an id and
+   not a stored field somebody matches against a row. A panel title is a panel title, so it takes the
+   sans like every other title in the window.
+
+   `min-width: 0` IS WHAT MAKES THE ELLIPSIS BELOW REAL, and without it the rest of this rule is
+   decoration. A title is a flex item of `.panel__header`, and a flex item's automatic minimum is the
+   width of its own content — so the summary long enough to need cutting short is exactly the one
+   that refuses to shrink, and what gives instead is the header: the chips and the new-conversation
+   mark are pushed
+   off its end. Stated on the shared primitive rather than on the dock because it is a fact about a
+   title in a flex header rather than about that panel; the dock is simply the only `.panel` this
+   window has, and therefore the only place it can be seen going wrong. */
+.panel__title {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pushes everything after it to the right edge of the header. */
+.panel__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel__body {
+  min-height: 0;
+  overflow: auto;
+}
+
+/* A body whose own content manages the scrolling (an iframe, a textarea, a virtualised list). */
+.panel__body--fixed {
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* -- cards and rows ------------------------------------------------------------------------------ */
+
+/*
+ * THERE IS NO SHARED ROW SHAPE, and the absence is the note worth keeping.
+ *
+ * A `.card`, `.card__label` and `.card__sub` — a label line over a quieter second line, "defined once
+ * because three panels draw one" — would belong here. Every panel that draws a row has its own: the
+ * graph packs rows to an arithmetic height contract (`.graph__row`), and the corner instruments draw
+ * theirs at the LCD's own scale (`.log__row`, `.sessions__row`). Nothing lists joins as rows, because
+ * the graph draws those edges as lines. A base rule with no callers is worse than no rule: the next
+ * panel inherits a shape nobody chose for it.
+ */
+
+/* -- buttons ------------------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  /* A button's label is a WORD THIS WINDOW CHOSE — Save, Discard, Try again — which is the sans's
+     half of the rule, and it is stated here rather than inherited because `.btn--icon` below is the
+     exception and an exception needs something to be an exception to. */
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+/* An icon button's label is a GLYPH — ⠿ ↻ ✕ ⧉ ↗ ⓘ — and what centres a symbol in a 28px square is
+   its advance width, which is the one thing a mono guarantees and a proportional face decides per
+   character. So these take the mono for its METRICS rather than for its voice, which is the same
+   reason `tokens.css` lists icon glyphs on the mono's side of the rule. Written after `.btn` and at
+   equal specificity, so it wins on source order within this one file, which is deterministic.
+
+   THE LIST IS WHAT THE FONTS ACTUALLY CARRY, and the marks this window wanted and could not type are
+   drawn instead: the conversation's plus-on-a-chip (`ChatDock.css`) and the graph row's magnifier
+   (`graph.css`) are inline SVG in `currentColor`, because the nearest code points for either arrive
+   as a colour emoji on one machine and a blank box on the next. An SVG child is centred by this
+   rule's flexbox rather than by its advance width, so it needs nothing from the mono. */
+.btn--icon {
+  font-family: var(--font);
+}
+
+/* A colour step, never element opacity: a translucent control would show the surface through its
+   own label, which the board's material law forbids. */
+.btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn--primary:disabled {
+  background: var(--bg-active);
+}
+
+/* Its border IS its affordance — there is nothing else saying this is a control — so it takes the
+   control token rather than the hairline the panels are separated with. */
+.btn--ghost {
+  border-color: var(--border-control);
+  background: var(--bg-panel);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.btn--quiet {
+  color: var(--text-secondary);
+}
+
+.btn--quiet:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.btn--icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+}
+
+.btn--icon:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* -- chips and pills ------------------------------------------------------------------------------ */
+
+/* A table name with a count, a mention resolved to a record, a tag. Small, bordered, never filled. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  /* NO FACE IS NAMED HERE, and the inherited sans is the right one: a chip carries baked
+     vocabulary — a table's name, a connection state, the word `report` — which is this window's
+     word for a thing rather than the thing's own. The 12px that used to force the mono is no longer
+     an argument for anything, because the sans has no floor to cross; a chip is small because a row
+     of them has to fit, and that is the whole of it.
+
+     ONE CHIP OPTS OUT, by naming the mono for itself: `.chat__chip` carries a record's own name,
+     dragged out of the database and about to ride with a message, which is an identifier rather
+     than vocabulary. It says so in `chat.css`, at the rule that draws it. */
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+  /* No `text-overflow`: this is a flex CONTAINER, where the property does nothing at all. Whichever
+     child has to be truncated says so for itself, and a dead declaration here is what makes the next
+     component assume it is handled. */
+  overflow: hidden;
+}
+
+.chip--active {
+  border-color: var(--border-strong);
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+/* -- meaning ---------------------------------------------------------------------------------------- */
+
+.tone-ok {
+  color: var(--ok);
+}
+
+.tone-warn {
+  color: var(--warn);
+}
+
+.tone-danger {
+  color: var(--danger);
+}
+
+.tone-muted {
+  color: var(--text-muted);
+}
+
+/* -- empty states ------------------------------------------------------------------------------------ */
+
+/*
+ * An empty panel says what would put something in it. "No records" is a dead end; "records appear
+ * here as the conversation creates them" is the product explaining itself, and every panel in this
+ * window spends its first minute empty.
+ *
+ * PROSE IS LEFT-ALIGNED, EVEN HERE. What these blocks hold is sentences — often several — and a
+ * centred paragraph gives every line a different starting edge, so the eye has to hunt for the
+ * beginning of each one. Centring survives in this window only for things that are not prose: a
+ * single glyph, a live marker, a count. The block stays vertically centred, because a panel with one
+ * short explanation pinned to its top edge reads as a panel that failed to load.
+ *
+ * The inset is a size larger than the panel's own padding for the same reason a page has margins:
+ * text that starts on the edge of its container reads as text that overflowed into it.
+ */
+.empty {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-5);
+  color: var(--text-muted);
+  /* Every one of these is a sentence this window wrote about a space with nothing in it —
+     "Reading this record…", "nothing has gone wrong" — so it is prose, and prose is the sans.
+     Stated rather than inherited because this block goes wherever a panel has nothing to draw, and
+     several of the places it could land have named the mono for their own contents; an empty state
+     that changed face with its host would be the window explaining itself in two voices. */
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+/* -- utilities ---------------------------------------------------------------------------------------- */
+
+/* Available to a screen reader and to nothing else. Used for the label a visible icon already
+   carries and for live-region announcements. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.scroll-y {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* -- motion ------------------------------------------------------------------------------------------- */
+
+/* Every transition in this window is decoration on a state change that has already happened, so
+   there is nothing to preserve when the reader has asked for stillness. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

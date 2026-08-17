@@ -1,0 +1,232 @@
+/*
+ * Rendered markdown, wherever it is painted. Owned by MarkdownView.tsx — every element these rules
+ * dress comes out of `renderMarkdown` through that one component — plus ONE guest: UserMessage.tsx
+ * imports this sheet for `.markdown__mention`, because a mention pill in a person's message must be
+ * the same pill as in the agent's prose, and two copies of a pill would drift on the first tweak.
+ * The lcd material sheet set the precedent for a two-importer sheet; the argument is the same.
+ *
+ * The prefix is the COMPONENT's own and not the chat's. Two surfaces draw prose through here — the
+ * transcript and the recipe preview — and a class named after the chat dressing a record card
+ * would be a lie in the inspector.
+ */
+
+/* THE SANS, on both grounds — ink on paper, chalk on the board; the tokens under these rules answer
+   differently in each place and the rules never ask which. What both consumers draw is a DOCUMENT:
+   the agent's answer, and a recipe as stored. Both came out of the machine, and neither is
+   read the way an identifier is read — they are read as paragraphs, which is what a proportional
+   face is for. The parts of a document that ARE technical data keep the mono and keep it by their
+   own rules: `code` and `pre` from the element rule in base.css, a fenced block from
+   `CodeBlock.css`, a mention from the pill at the foot of this sheet. So the face changes at exactly
+   the boundaries where the kind of string changes. */
+.markdown {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  /* A pasted URL or a long identifier must break rather than widen the column past the panel. */
+  overflow-wrap: break-word;
+  /*
+   * THE ONE DECLARATION THAT KEEPS A CODE FENCE INSIDE THE PANEL, and it is here rather than in
+   * `chat.css` because the trap is this component's own shape wherever it is drawn.
+   *
+   * In the transcript this div is a GRID ITEM: `AssistantMessage` renders it straight into
+   * `.chat__msg`, which is `display: grid`. A grid item's automatic minimum size is content-based, so
+   * `min-width: auto` makes the longest line of a fence the FLOOR of the whole message column — the
+   * column widens past the dock, and because the fence's own `overflow` is what was supposed to
+   * absorb that width, nothing inside it ever scrolls. Zero says the panel decides the width, and
+   * every wide thing below then scrolls in its own box: a settled fence through `pre.shiki` in
+   * `CodeBlock.css`, a fence still streaming through `.markdown > pre` further down this sheet, a
+   * grid of data through `.markdown table`, a record through `.rowcard` in `RowCard.css`. Note that
+   * `overflow` on those descendants does NOT do this job — it makes them scroll containers, not
+   * narrow ones.
+   *
+   * Inert on the recipe preview, where this div is an ordinary block and takes its containing
+   * block's width already; kept unconditional so a second grid surface cannot re-open the trap.
+   */
+  min-width: 0;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown blockquote,
+.markdown table {
+  margin: var(--space-2) 0;
+}
+
+/* One size for every level. The column is too narrow for a hierarchy of type sizes to read as one,
+   and weight plus spacing already says "this starts a section".
+
+   THE RULE UNDER THE WORDS IS A DIVISION, because a heading in a narrow column is doing the work a
+   page break does on a wide one: without a line under it, the sentence beneath reads as the rest of
+   the heading's own line. That is true of an answer's sections and of a recipe's, which are the
+   two documents these rules dress. A record's fields are not among them any more — those arrive in
+   the `~~~row` grammar and are drawn by `RowCard.css`, which labels a field without spending a
+   heading on it. */
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: var(--space-3) 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+/* A heading directly under a heading is a SUBLABEL rather than the next field, so it tucks up under
+   the one above instead of opening its own gap: two rules a heading's margin apart, with nothing
+   written between them, divide nothing. */
+.markdown :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: var(--space-5);
+}
+
+.markdown li {
+  margin: var(--space-1) 0;
+}
+
+.markdown code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+}
+
+/*
+ * A fence that has NOT been through the highlighter.
+ *
+ * `MarkdownView` replaces every completed fence with the `.codeblock` chrome from `CodeBlock.css`,
+ * so what is left for these rules is the one case that is deliberately not replaced: the block still
+ * being written at the end of a streaming answer. It gets the paper-grey dressing until the turn
+ * lands and it is coloured like the rest — which is why the rules stay rather than being deleted,
+ * and why they are scoped away from `.codeblock`. Without the guard this border would draw a second
+ * frame around every coloured block, inside the dark one it already has.
+ */
+.markdown > pre {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  /* Code keeps its lines: wrapping it changes what it looks like it says. */
+  overflow-x: auto;
+}
+
+.markdown > pre code {
+  padding: 0;
+  background: none;
+}
+
+.markdown blockquote {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+/*
+ * A TABLE IS A GRID OF DATA, and now only that.
+ *
+ * It used to be dressed as a record card — a frame, a well behind the first column, the field names
+ * down the left — on the argument that the consent rule makes a table in an answer most often a row
+ * put up for agreement, and that nothing on the wire could tell the two apart anyway. A convention
+ * only the model remembers was refused on the grounds that it fails silently on the turn it forgets.
+ *
+ * WHAT CHANGED IS THAT THE FALLBACK STOPPED BEING SILENCE. A row now arrives in a grammar of its own
+ * — the `~~~row` fence `rowCard.ts` draws — and a fence this window cannot read keeps the ordinary
+ * code chrome, so a forgotten grammar shows the reader the outline as typed instead of nothing at
+ * all. With the record's own shape somewhere to live, dressing every grid of numbers as a record was
+ * left costing the numbers and buying nothing.
+ *
+ * The block/`max-content`/`max-width` trio stays, and it is the load-bearing part of these rules: a
+ * wide table takes its own scrollbar rather than stretching the message column, which is the whole
+ * point of the `min-width: 0` argued at the top of this sheet.
+ */
+.markdown table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: var(--text-sm);
+}
+
+/* Hairlines only where there is a division: a rule under a cell divides the ROW, a rule between two
+   cells divides the COLUMN. */
+.markdown th,
+.markdown td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.markdown th + th,
+.markdown td + td {
+  border-left: 1px solid var(--border);
+}
+
+/* The last row ends the grid rather than ruling off empty space under it. */
+.markdown tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* What the columns ARE is a different kind of line from what divides two rows, so the header is
+   ruled off in the strong chalk and sits in the well. */
+.markdown thead th {
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.markdown hr {
+  margin: var(--space-3) 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* -- mentions -------------------------------------------------------------------------------------- */
+
+/*
+ * `display: inline` rather than the button default, so a mention wraps with the sentence it is in
+ * instead of being carried whole to the next line — one of these can be a file path, and an
+ * unbreakable path in a 420px column pushes the panel sideways.
+ */
+.markdown__mention {
+  display: inline;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  /* The mono, stated because the prose around it is the sans: a mention names a row — a table and an
+     id, in the mention grammar's own spelling — and it is the one span in a paragraph that a reader
+     may have to compare character by character against a record. */
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.markdown__mention:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}

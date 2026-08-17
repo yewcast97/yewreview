@@ -1,0 +1,128 @@
+/*
+ * The row of role slots, on the line above the composer. Owned by RoleSlots.tsx; see the stylesheet
+ * convention at the top of base.css.
+ *
+ * IT IS A ROW OF SMALL WELLS RUBBED INTO THE SLATE, not five cards and not five chips. A slot is a
+ * PLACE something goes — that is the whole gesture the panel above it is built around — so it is
+ * drawn as a recess with a name written in it rather than as an object sitting on the board, and
+ * there is no border: an empty slot reads as somewhere to put a thing precisely because it is a
+ * hole in the surface rather than another thing on it.
+ *
+ * THE FILL IS `--board-well-deep` AND IT HAS TO BE THE DEEPER OF THE TWO. The dock these sit in is
+ * already `--board-well` — the transcript is itself a well rubbed into the slate — so a slot at that
+ * shade is a recess drawn in exactly the colour of the surface it is cut into, which is no recess at
+ * all. One step deeper is the same idea applied one layer down, and it is what makes five slots
+ * visible on a surface that was already a hole.
+ *
+ * TWO LINES OF TYPE PER SLOT, BOTH MONO, TOLD APART BY INK. The role is opencode's own word —
+ * `build`, `explore` — and the line under it is a model identifier or the name somebody typed for
+ * one; both are strings off the wire rather than words this window chose, which is the whole of the
+ * mono's half of the rule. What separates them is pressure: the role is a fixed label and takes the
+ * muted chalk, and what ANSWERS in the slot is the changeable half and takes the working ink it
+ * inherits. A second face here would be dressing one line as prose when neither of them is.
+ *
+ * IT IS ONE UNWRAPPED ROW AND THE SLOTS SHRINK TOGETHER, and the argument is in the component. Every
+ * slot is a drop target, and a target that has to be scrolled into view during a drag cannot be hit
+ * — so this row has never scrolled and still does not. What it no longer does is WRAP: the reader
+ * can now narrow the conversation to a third of the window, a second line of slots is a line of
+ * transcript spent, and the note being carried has to cross whatever this rack costs. Five slots
+ * sharing the line at every width keeps every target on screen AND keeps the row one line high; what
+ * a narrow dock costs is paid in ELLIPSIS instead, in the two words inside a slot rather than in the
+ * layout around it.
+ */
+
+.slots {
+  display: flex;
+  /* The whole of the rule above, in one declaration: no second line, and no scroller either. What
+     gives on a narrow dock is the width of each slot, which the rules below arrange. */
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  /* The composer's own inset, so the slots line up with the well below them rather than with the
+     card's edge — the same padding `.chat__context` keeps for the caption above. */
+  padding: 0 var(--space-2);
+}
+
+/*
+ * One slot: the role over what answers in it.
+ *
+ * A ZERO BASIS AND A ZERO FLOOR, WHICH IS WHAT MAKES FIVE OF THESE AN EVEN FIFTH OF WHATEVER LINE
+ * THEY ARE GIVEN. A basis in pixels was what used to break the rack onto a second row — five slots
+ * that could not shrink past their own width simply did not fit a narrow dock — and with nothing to
+ * break for they scale with the panel instead. `min-width: 0` is the other half of it and is not
+ * tidiness: a flex item's automatic minimum is the width of its own CONTENT, so without it the
+ * longest role word and the longest model name hold the row open between them and the overflow that
+ * the wrap used to absorb comes back with nowhere to go.
+ *
+ * Both lines inside are cut short rather than allowed to push, which is where a narrow dock is paid
+ * for — see `.slots__role` and the cap on the picker at the foot of this sheet.
+ */
+.slots__slot {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  /* Takes an even share of the row and gives one back, so the rack spans the composer instead of
+     huddling at its left edge — and every slot is then the same size at every width, which is what
+     makes five of them read as a rack rather than as five chips. */
+  flex: 1 1 0;
+  padding: 2px var(--space-2) 3px;
+  border-radius: var(--radius-sm);
+  /* THE FACE IS STATED ON THE SLOT AND NOT ON EITHER LINE INSIDE IT, which is what lets the picker
+     go on inheriting everything about how it is set — the bargain `Picker.css` asks its callers to
+     keep. Both lines are strings off the wire: opencode's word for a role, and a model identifier or
+     the name somebody typed for one. */
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  background: var(--board-well-deep);
+  /* A slot the pointer is not over has no ring, and the ring below is drawn INSIDE the box so a lit
+     slot does not push its neighbours a pixel sideways. Declared here at zero width so the
+     transition has something to run between. */
+  box-shadow: inset 0 0 0 0 transparent;
+  transition: box-shadow var(--duration-fast) var(--ease);
+}
+
+/*
+ * Something is being held over this one.
+ *
+ * The yellow stick, as an inset ring: the same colour the composer draws when a record is over it,
+ * because it is the same promise — let go and this is where it goes. Inset rather than an outline
+ * for the reason above, and 2px because chalk never draws at one.
+ */
+.slots__slot--hot {
+  box-shadow: inset 0 0 0 2px var(--focus);
+  background: var(--info-bg);
+}
+
+/* The role's own word. Quiet, because the changeable half of the slot is the line under it: the
+   role is a fixed label and the model is the answer.
+
+   THE CLIP IS ALSO WHAT LETS THE SLOT SHRINK. This is a grid item, and an item whose overflow is
+   visible contributes its whole min-content width to the track — so `overflow: hidden` is doing two
+   jobs at once here, cutting a long role word short and zeroing the floor that would otherwise hold
+   the rack open at five role words plus their padding. */
+.slots__role {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The model, which is a `Picker` and arrives already dressed as the word in a line that it replaces
+ * — no border, no ground, no face and no ink of its own. So all this strip says about it is a WIDTH,
+ * which is the one thing `Picker.css` reserves for the caller: a fact about the slot rather than
+ * about the picker. A model identifier is as long as whoever named it made it, and a slot is one of
+ * five on a line.
+ */
+.slots__pick {
+  min-width: 0;
+}
+
+/* TWO CEILINGS AND THE SMALLER WINS. The 18ch is what a name may grow to on a wide dock, where a
+   model identifier left uncapped would make one slot twice its neighbours and stop the five reading
+   as a rack. The `100%` is what holds at the narrow end: it is the slot's own width, so the name is
+   cut short by the slot rather than reaching past it — a cap in `ch` alone is a promise about a
+   string, and the string is whatever a provider called its model. */
+.slots__pick .picker__trigger {
+  max-width: min(18ch, 100%);
+}

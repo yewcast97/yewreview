@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YewReview</title>
+    <!--
+      No theme script, and nothing replaces the one that was here.
+
+      It existed to stamp `data-theme` before the first paint, because a window that flashes white on
+      its way to a dark theme does it on every single launch. There is one theme now, and
+      `color-scheme: dark` is declared in `styles/tokens.css` — render-blocking CSS, parsed before the
+      browser paints anything. The flash it was preventing cannot happen.
+    -->
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

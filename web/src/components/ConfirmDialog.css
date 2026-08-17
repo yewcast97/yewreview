@@ -1,0 +1,83 @@
+/* The confirmation modal. Owned by ConfirmDialog.tsx; see base.css for the stylesheet rule. */
+
+/* The scrim stays: pure black at six tenths is the room's lights dropping, not a surface — the one
+   composite the board's material law licenses beyond the shadows. */
+.confirm__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--bg-scrim);
+}
+
+/*
+ * A sticky note held up to the reader: the sheet is an inert layer in the markup (`paper.css`) and
+ * the magnet over it is the cancel, so this rule owns only the grid and the room on it. The heavier
+ * shadow is the paper's own, thrown from closer to the eye than the notes on the rail — a question
+ * held up IS nearer than a note pinned down.
+ */
+.confirm {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  width: min(420px, 100%);
+  padding: var(--space-4);
+}
+
+.confirm > .paper__sheet {
+  filter: url(#deckle0) drop-shadow(0 12px 32px rgba(0, 0, 0, 0.5));
+}
+
+.confirm > :not(.paper__sheet):not(.paper__magnet) {
+  position: relative;
+}
+
+/*
+ * THE MAGNET, WHICH IS THE CANCEL. Two classes for the two fights `.note__close` and
+ * `.ledger__close` document and this one has verbatim: `.paper__magnet` is inert by default,
+ * because a stone at `z-index: 3` over somebody else's title must not eat their presses, and this
+ * one is a control; and a `<button>` arrives with the UA's border, padding and background, any of
+ * which would show as a square behind an 18px circle.
+ *
+ * NO POSITION OF ITS OWN. This dialog's sheet IS its housing — `.paper__sheet` is `inset: 0` here —
+ * so the material's own 6px corner lands where it should with nothing restated. Only the ledgers
+ * differ, and only because their sheet is inset inside theirs.
+ */
+.confirm__close.paper__magnet {
+  padding: 0;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* A question this window asked and the sentence explaining it: both are the window's own words, so
+   both take the sans, and both say so rather than inheriting because a dialog is rendered outside
+   every panel that might already have named a face.
+
+   THE RIGHT INSET IS THE MAGNET'S FOOTPRINT, the same arithmetic `.note__head` does: the stone is
+   6px in from the sheet and 18px across, so it owns the first 24px of the corner, and the box's own
+   16px of padding leaves ten of those over the title. This is the only line on the stone's row — the
+   body and the buttons are below it — so it is the only one that pays. */
+.confirm__title {
+  margin: 0;
+  padding-right: var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+
+.confirm__body {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+}
+
+.confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

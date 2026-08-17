@@ -1,0 +1,128 @@
+/*
+ * The conversation dock's frame. Owned by ChatDock.tsx and imported by nothing else; see the
+ * stylesheet convention at the top of base.css.
+ *
+ * ONLY THE FRAME IS HERE. Everything inside the dock — the transcript, the bubbles, the tool
+ * lines, the model pool's drawer, the composer and its well — is `chat.css` and the sheets those
+ * components own, none of which is about where the conversation sits on screen. This sheet is three
+ * facts: the dock is fixed, it is lifted off the work, and one of its edges can be held.
+ *
+ * THE RECTANGLE IS NOT IN THIS FILE, and must not be moved into it — the more so now that a reader
+ * can move it. All four numbers are written as an inline style by the component from
+ * `state/chatDock.ts`, which owns the whole split of the window. A rule here saying `width: 50vw`
+ * would be a second opinion about a rectangle that already has one, and the symptom would be a board
+ * whose notes stop somewhere other than where the conversation starts. What the grip below declares
+ * is its own strip and nothing about where that strip is in the window: it is pinned to `left: 0` of
+ * whatever rectangle the component wrote.
+ */
+
+/*
+ * A chalk box drawn down the right of the board.
+ *
+ * Written `.panel.chatdock` rather than `.chatdock` because the bundler may emit this sheet BEFORE
+ * base.css, and a single-class rule would lose to `.panel` on source order alone — see the warning
+ * in base.css. What it takes from `.panel` is the bones: two rows, a bar that stays put over a
+ * body that scrolls, the clip.
+ *
+ * THE MATERIAL IS A WELL IN THE SLATE with a chalk frame drawn around it: the fill is the solid
+ * `--board-well` — a shade rubbed back into the board, so the transcript sits IN the slate rather
+ * than on a card over it — and the border is a `.chalk-frame--bright` layer the component mounts
+ * as its first child, wobble and all, the same construction as every box in the graph. No shadow:
+ * the dock is chalked onto the board, and only paper throws shadows here. Radius 12 on both the
+ * housing and the frame so the clip and the drawing agree at the corners.
+ */
+.panel.chatdock {
+  position: fixed;
+  /* The BOTTOM of the floating layers — above the board, under everything laid on it. The
+     conversation is the desk rather than the top of the pile: it is bolted to one side of the
+     window and cannot be lost, so a note the reader has dragged over it stays where
+     they put it, and the way back to the dock is to move the note rather than to hunt for what is
+     under it. `tokens.css` holds the argument. */
+  z-index: var(--z-dock);
+  border-radius: 12px;
+  background: var(--board-well);
+}
+
+/* Inset by the displacement's reach: the housing clips its overflow, and a frame drawn at the
+   very edge would have its wobble sliced flat wherever it strayed outside. */
+.panel.chatdock > .chalk-frame {
+  inset: 3px;
+  border-radius: 12px;
+}
+
+/* The two content children paint above the frame — the frame is positioned, and would otherwise
+   cover the header and the transcript. NAMED, not `:not(.chalk-frame)`: a bare `:not` list lands
+   (0,3,0) on every child, which quietly out-ranks any position a child of its own sets for itself,
+   and this box has had such a child before. Same construction as `.graph__node`. The grip below is
+   the child that would have been caught by such a list, and it declares its own position for
+   exactly that reason. */
+.panel.chatdock > .panel__header,
+.panel.chatdock > .chat__body {
+  position: relative;
+}
+
+/*
+ * The one edge that can be held: the boundary between the board and the conversation.
+ *
+ * A STRIP OVER THE PANEL'S OWN LEFT PADDING rather than a gap between the two halves. The dock's
+ * left edge is the board's edge — there is no margin there, by the argument in `state/chatDock.ts` —
+ * so the only place to put a handle is just inside it, where it covers padding and never a word. Ten
+ * pixels is what a pointer finds without aiming and is still narrower than the gutter the transcript
+ * keeps.
+ *
+ * `z-index` IS NOT OPTIONAL, and its absence is a grip nobody can press. The header and the body are
+ * positioned and come after this in the markup, so on source order alone they would paint over the
+ * strip and take every pointer event that lands on it — the symptom being an edge that shows no
+ * cursor, no tint and no movement, with nothing in the markup missing.
+ *
+ * `touch-action: none` is not optional either, for the reason `NoteBoard.css` states about every
+ * other drag in this window: without it a touch drag is claimed by the browser's own panning before
+ * `setPointerCapture` ever sees a move, and the edge does not budge on a tablet.
+ */
+.panel.chatdock > .chatdock__grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* Lit only while it is being pointed at or held. A strip that was always tinted would be a rule
+   drawn down the seam of the window, which is a decoration this board does not want; the cursor is
+   what says the edge is grabbable, and the tint is what says the gesture has been picked up. */
+.panel.chatdock > .chatdock__grip:hover {
+  background: var(--bg-hover);
+}
+
+.panel.chatdock > .chatdock__grip:active {
+  background: var(--bg-active);
+}
+
+/*
+ * The plus-on-a-chip in the header's last button, drawn by `ChatDock.tsx` because no font ships one
+ * at a weight the rest of this row would agree with.
+ *
+ * THE INK IS INVERTED HERE AND NOWHERE ELSE IN THIS WINDOW, which is the whole of what makes it a
+ * chip rather than an outline: the circle is FILLED in the button's own colour and the plus is
+ * stroked in the panel's background, so the mark is a hole punched through a solid rather than two
+ * colours sitting side by side. That is what keeps it dimming with the label when the press is in
+ * flight — there is only one colour in it — and it is why the plus cannot be `currentColor` like
+ * every other glyph in the dock.
+ *
+ * Round caps because two 6px strokes crossing at 14px show their square ends as four notches on the
+ * chip's face.
+ */
+.chatdock__new {
+  /* The button is a flex box, and an svg in one is a flex item that will be squeezed before it is
+     allowed to overflow — which on a narrow dock is a chip drawn as an oval. */
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: var(--bg-panel);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}

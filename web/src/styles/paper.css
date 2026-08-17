@@ -1,0 +1,227 @@
+/*
+ * Paper: the material every sticky note is made of.
+ *
+ * A shared MATERIAL sheet, not a component's — the note stack, the corner ledgers, the dialog and
+ * the toasts all draw sheets of light paper, and a private copy in each of their stylesheets would
+ * be four papers drifting apart by the third month. The same argument `lcd.css` made for glass,
+ * inherited by its successor.
+ *
+ * THE PAPER ANSWERS THE WINDOW'S OWN TOKENS, and that is the load-bearing trick. Everything drawn
+ * on a note — record bands, field grids, chips, buttons, markdown — was written against the global
+ * vocabulary: `--text`, `--bg-subtle`, `--border` and their siblings. Rather than restyling every
+ * one of those rules for a light ground, `.paper` REDEFINES the tokens in its own subtree: the
+ * rules keep asking the same questions and the paper answers them in ink. One remap instead of a
+ * hundred overrides, and a component that works on the dark board works on paper unchanged.
+ *
+ * EVERY SURFACE HERE IS OPAQUE. The board bans transparency — nothing may show through a surface —
+ * so every "faded ink" below is the fade PRE-BLENDED into a solid hex against its own paper, and
+ * the only alpha in this file is in pure-black shadows, which darken what is under them without
+ * ever compositing a surface. The magnet's white glint is solid gradient stops: it is a glossy
+ * object sitting on matte paper, not a shine applied to the paper.
+ *
+ * ONE PAPER, AND EVERY SHEET IN THE WINDOW IS TORN OFF IT. Sage — 鼠尾草纸, `#dbe2c9` — is the pad:
+ * the notes on the board, the corner ledgers when they open, the dialog, the toasts and the ⓘ
+ * popovers are all this colour and there is nothing to choose from. Ten tints used to be dealt out
+ * here, hashed from each card's key, under a paragraph saying at length that a note's colour MEANS
+ * NOTHING; a pad of one paper says that same thing with nothing left to read into it. Two notes
+ * side by side now differ by what is WRITTEN on them, which was always the only difference either
+ * of them had. The corner instruments lose a "fixed dress" they never needed either — an
+ * instrument's identity is the word engraved on its chip, not the colour of the sheet behind it.
+ *
+ * The variety also cost something every time it grew. A new tint was four blends and a contrast
+ * check, and two of the last four shipped needing a darker ink than the formula gave; the check
+ * below is now made once, for one sheet, and cannot drift.
+ *
+ * WHAT IS STILL DEALT IS THE TORN EDGE, three deckle seeds hashed from a stable key by the
+ * component and never drawn at random during render. The MAGNET is not dealt at all any more: one
+ * colour, one corner, because it is a control (see below). The TILT is not dealt to notes either;
+ * the six rotations stand at the foot of this file for the things that do want one, and
+ * `NoteBoard.css` argues why a note full of stored values is not among them.
+ *
+ * The deckled edge arrives with the board's SVG filter defs and is applied to `.paper__sheet`
+ * ONLY — the sheet is an inert layer under the words, so the paper's edge can wobble while the
+ * glyphs stay vector-crisp. Content siblings must carry `position: relative`, because a positioned
+ * sheet would otherwise paint over the normal-flow text beside it.
+ */
+
+.paper {
+  position: relative;
+  /* THE PAD ITSELF, on `.paper` rather than on a variant class, because there is no variant: the
+     face and the four ink roles blended against it — the ruled line (ink at .20), muted ink (.80),
+     the hover wash (.07) and the well a code block sits in (.10). Solid hex, computed against this
+     face, never rgba.
+
+     THE BLEND IS A FORMULA AND THE CONTRAST IS MEASURED. Every value is `mix(#dbe2c9, #3a332b, t)`
+     at those four weights, and `--paper-mut` is then checked against `--paper-well` — the darkest
+     of the four and what muted 12px text actually sits on. The .78 blend (`#5d5a4e`) measures
+     4.40 and FAILS the 4.5 bar; .80 measures 4.66 and is what is written below. That is the
+     identical failure the coral and linen sheets hit before this pad replaced them, which is why
+     the weight is recorded as a measurement rather than as a taste. */
+  --paper-bg: #dbe2c9;
+  --paper-line: #bbbfa9;
+  --paper-mut: #5a564b;
+  --paper-hover: #d0d6be;
+  --paper-well: #cbd1b9;
+  /* The ink, and the answers this subtree gives to the window's questions. */
+  --ink: #3a332b;
+  color: var(--ink);
+  --text: var(--ink);
+  --text-secondary: var(--paper-mut);
+  --text-muted: var(--paper-mut);
+  --bg-panel: var(--paper-bg);
+  --bg-subtle: var(--paper-well);
+  --bg-hover: var(--paper-hover);
+  --bg-active: var(--paper-hover);
+  --border: var(--paper-line);
+  --border-strong: var(--paper-mut);
+  --border-control: var(--paper-mut);
+  /* Links and focus on paper are blue ink — the accent's yellow chalk belongs to the board and
+     would vanish against a light sheet, this sage one included. */
+  --accent: #2f5d9e;
+  --accent-hover: #24487c;
+  --accent-text: #ffffff;
+  --focus: #2f5d9e;
+  /* Meaning is INK on paper: the board's pale chalks would disappear against a light sheet, so the
+     four states re-answer as the dark inks of their hues, and the tinted grounds fall back to the
+     paper's own washes. */
+  --ok: #24512f;
+  --warn: #755508;
+  --danger: #a03325;
+  --info: #2f5d9e;
+  --ok-bg: var(--paper-hover);
+  --warn-bg: var(--paper-hover);
+  --danger-bg: var(--paper-hover);
+  --info-bg: var(--paper-well);
+}
+
+/* The sheet: an inert layer under everything, carrying the paper's face, its fibre, and its torn
+   edge. The FACE is the solid `--paper-bg` with the grain painted over it — a tiling of desaturated
+   turbulence at 5%, deterministic pixels over the sheet's own opaque colour, which is the one
+   gradient composite the no-transparency law licenses. The EDGE is a deckle filter (ChalkDefs.tsx),
+   one of three seeds dealt by `data-deckle` on this element; the drop-shadow rides the same filter
+   chain so the shadow follows the torn edge rather than the rectangle the browser laid out — which
+   is also why there is no `box-shadow` here. */
+.paper__sheet {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 2px;
+  background-color: var(--paper-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23p)' opacity='0.05'/%3E%3C/svg%3E");
+  filter: url(#deckle0) drop-shadow(var(--shadow-paper));
+}
+
+.paper__sheet[data-deckle="1"] {
+  filter: url(#deckle1) drop-shadow(var(--shadow-paper));
+}
+
+.paper__sheet[data-deckle="2"] {
+  filter: url(#deckle2) drop-shadow(var(--shadow-paper));
+}
+
+/* -- the magnet ---------------------------------------------------------------------------------- */
+
+/*
+ * The one glossy thing in the window: a round rust magnet in the top-right corner of the sheet. The
+ * glint is SOLID gradient stops — a white point, a specular ring, the lit face, the body, the
+ * shadowed rim — so the shine is painted matter, not an effect over the paper. Black shadows only:
+ * one under it on the sheet, one inside its lower rim.
+ *
+ * ONE COLOUR AND ONE CORNER, EVERYWHERE, because wherever a stone appears in this window it is now
+ * the CLOSE — a note, the three corner instruments, the dialog, a toast. (The two popovers wear the
+ * paper and no magnet, which is the honest arrangement: they have no such gesture to offer.) A
+ * control the reader has to look for is a control that gets missed, and the board teaches this one
+ * exactly once — "the red magnet takes a note down", `GraphPanel.tsx` — for every sheet in the
+ * window.
+ *
+ * WHAT WENT WITH THE TEN PAPERS. Four colour classes, of which only this one ever had a consumer,
+ * and a `--tl`/`--tr` pair for choosing a corner. A switch with one arm is a promise, and a corner
+ * switch is a promise this window has now decided against keeping: the one site that reached for
+ * `--tl` was a decorative stone in the top LEFT of the dialog, which is exactly the case that made
+ * the vocabulary unreadable.
+ *
+ * ── WHERE A MAGNET DOES NOT GO, WHICH IS THE OTHER HALF OF THE RULE ──────────────────────────────
+ *
+ * A MAGNET PINS PAPER. Two dismissals in `Composer.tsx` stay a plain `×` and are not oversights.
+ * The chat error strip is SLATE, not paper — a stone on it would be this window's paper vocabulary
+ * spoken in the wrong material, which is worse than no vocabulary at all, because the reader would
+ * be learning that the stone means "close" rather than "take this sheet down". And the chip-remove
+ * is an 18px glossy stone inside a 20px chip: trim eating the label it is attached to, on a control
+ * whose whole job is to be small enough that a row of them fits.
+ *
+ * The two popovers are the third case and they wear the paper with no stone at all — see above:
+ * they have no close gesture to offer, and a magnet is exactly the promise of one.
+ */
+.paper__magnet {
+  position: absolute;
+  /* THE CORNER BELONGS TO THE MATERIAL, NOT TO THE SITE. 6px in from both edges puts the whole
+     stone on its own sheet — a magnet is a control here, and half a target hanging off the paper
+     would sit over whatever the sheet is covering. A site restates this only when its sheet is not
+     its housing: the ledgers' paper is inset 4px, so theirs says 10px to land in the same place on
+     the paper. */
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  z-index: 3;
+  /* TRIM BY DEFAULT, AND EVERY CURRENT SITE SAYS OTHERWISE. This is a MATERIAL: it draws a stone,
+     and a stone is not a control. A stone sits over a head, a title or a sentence at `z-index: 3`,
+     so the dangerous default is the one that silently eats presses meant for what is under it —
+     which is why the default is the inert one and each site that means a button wins the pointer
+     back by name, in the same two-class rule that turns off the `<button>` chrome. The z-index is
+     what keeps the stone over a note's drag handle either way. */
+  pointer-events: none;
+  box-shadow:
+    0 3px 5px rgba(0, 0, 0, 0.5),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 锈红 — rust. Still spelled `--red`, and the name is the right one to keep: every close in the
+   window already says it, and the sentence the board teaches the reader says "red". Rust IS a red,
+   a darker and dirtier one than the pillarbox stone it replaces, and it is the hue that reads as a
+   worked object on a sage sheet rather than as a warning label stuck to one. `#c1512f` is the body;
+   the four stops around it are that one hue lit and shadowed. */
+.paper__magnet--red {
+  background-image: radial-gradient(
+    circle at 32% 28%,
+    #ffffff 0 1.5px,
+    #e6b9ac 3px,
+    #cd7459 7px,
+    #c1512f 55%,
+    #6a2d1a 100%
+  );
+}
+
+/* -- the tilt ------------------------------------------------------------------------------------ */
+
+/* Six standing tilts, chosen by hash. `rotate` rather than `transform` so it composes with any
+   transform the element already carries, and small enough that no reader has to read at an angle.
+
+   NOT DEALT TO STICKY NOTES, and the rules are here for whatever else wants one. A wall of
+   slightly crooked paper is exactly right for things somebody stuck up in a hurry and exactly wrong
+   for a field grid, a column of stored values or a form — see `NoteBoard.css`, which makes the
+   argument at length. The deckled edge and the magnet carry the handmade reading on their own. */
+.paper[data-tilt="0"] {
+  rotate: -1.2deg;
+}
+
+.paper[data-tilt="1"] {
+  rotate: 0.7deg;
+}
+
+.paper[data-tilt="2"] {
+  rotate: -0.5deg;
+}
+
+.paper[data-tilt="3"] {
+  rotate: 1deg;
+}
+
+.paper[data-tilt="4"] {
+  rotate: -0.9deg;
+}
+
+.paper[data-tilt="5"] {
+  rotate: 0.4deg;
+}

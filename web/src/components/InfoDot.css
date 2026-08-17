@@ -1,0 +1,117 @@
+/*
+ * The ⓘ beside a label, and the sheet it hides. Owned by InfoDot.tsx; see the stylesheet convention
+ * at the top of base.css.
+ *
+ * Built to the same pattern as the health read-out's popover in the opposite corner — a paper slip,
+ * always mounted, hidden by `visibility`, no deckle — and the two are deliberately alike: this
+ * window has one popover, drawn twice.
+ */
+
+.infodot {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+/*
+ * WRITTEN AS `.btn.infodot__btn`, which is the rule at the top of base.css and not a flourish: this
+ * sheet may be emitted BEFORE base.css, so a single class here loses to `.btn--icon` on source
+ * order and the dot would come out at the icon button's own 28px — nearly twice the height of the
+ * label line it has to sit inside.
+ *
+ * Muted rather than full ink, and unmuted on hover: an explanation available on every field is
+ * eight marks down a form, and eight marks competing with the labels they annotate is a wall of
+ * prose drawn smaller.
+ */
+.btn.infodot__btn {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+/* THE TRANSPARENT BACKGROUND IS THE POINT, cancelling `.btn--icon`'s hover fill: a filled circle at
+   16px is a blot under the glyph, and the unmute IS the affordance. The `:not(:disabled)` is
+   SPECIFICITY rather than behaviour — this dot is never disabled. Without it the selector lands at
+   (0,3,0), exactly level with `.btn--icon:hover:not(:disabled)` in base.css, and which of the two
+   fills wins is a bundler-order coin toss re-tossed on every build. The trap at the top of
+   graph.css, in its quietest form. */
+.btn.infodot__btn:hover:not(:disabled),
+.btn.infodot__btn[aria-expanded="true"] {
+  color: var(--text);
+  background: transparent;
+}
+
+/*
+ * The sheet.
+ *
+ * TWO CLASSES BECAUSE `.paper` DECLARES `position: relative` — at equal specificity the bundler's
+ * emission order decides, and the losing order leaves a hidden popover IN FLOW, silently pushing the
+ * label line apart by the width of a sentence. The same trap `.health__detail` documents.
+ *
+ * `fixed`, NOT `absolute`, and `InfoDot.tsx` argues it at length: these dots sit on forms inside
+ * notes, a note's body is a scroll container, and an absolutely positioned sheet is clipped by it —
+ * so the explanation on any field in the lower half of a form gets cut off mid-sentence. Fixed
+ * escapes the overflow. The `top`/`left` here are a starting point only; the component measures and
+ * writes the real pair inline, on the same bargain the conversation dock makes with its rectangle.
+ *
+ * `--z-popover` lifts it above everything in its OWN note, which is all a z-index here can do: the
+ * note carries a z-index of its own, so it is a stacking context and nothing inside it can be
+ * painted above a note in front. That is the right answer anyway — a sheet belonging to a buried
+ * note has no business floating over the one on top of it — and the reader's way out is the one they
+ * already know: touch the note to bring it forward.
+ */
+.infodot .infodot__pop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  display: block;
+  width: max-content;
+  /* The same sheet as the health popover, so the same numbers: 280 and 12 all round on both, rather
+     than 260 with 8/12 padding here, which would be two sheets off one pad cut to two sizes. Only
+     the sizing PROPERTY differs, and that difference is real — this shrinks to fit a sentence,
+     that one holds a grid of rows. */
+  max-width: min(280px, calc(100vw - var(--space-5)));
+  padding: var(--space-3);
+  border-radius: 2px;
+  background: var(--paper-bg);
+  box-shadow: var(--shadow-paper);
+  color: var(--ink);
+  /* An explanation this window wrote about a field, which is prose — and every declaration in this
+     block is here for the same reason: the sheet is rendered inside a label or a chip that has
+     already set a face, a weight, a tracking and a `nowrap`, and a popover has to be a paragraph
+     whatever it was opened from. */
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: var(--leading-normal);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  visibility: hidden;
+}
+
+/*
+ * ONE SELECTOR, BECAUSE `open` IS ONE TRUTH. There is deliberately no `:hover` rule and — the part
+ * worth stating, because the obvious version of this component has one — no `:focus-within` rule
+ * either.
+ *
+ * A `:focus-within` rule looks free: the keyboard is inside it, so it should stay up, and `open` is
+ * true anyway. The state it misses is ESCAPE. Escape sets `open` to false but does not move focus
+ * off the dot, so `:focus-within` still matches and the sheet stays on screen — with
+ * `aria-expanded="false"` and no `data-open` on it. That is a control lying about itself in the
+ * exact way this component's header exists to avoid, and there is no second Escape to
+ * fix it because the handler bails on `!open`. The click-to-close toggle reaches the same state, for
+ * the same reason: mousedown focuses the button before the click closes it.
+ *
+ * Nothing is lost by leaving it out. Focus OPENS the sheet (`onFocus`), and the pointer-leave handler
+ * refuses to close it while focus is inside — so every case `:focus-within` would cover is already
+ * covered by the state itself.
+ */
+.infodot .infodot__pop[data-open="true"] {
+  visibility: visible;
+}

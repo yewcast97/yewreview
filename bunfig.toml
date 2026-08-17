@@ -1,0 +1,3 @@
+[test]
+# Every suite builds its own temp var-dir; none of them may reach the developer's real one.
+root = "./tests"

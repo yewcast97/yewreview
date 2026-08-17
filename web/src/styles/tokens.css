@@ -1,0 +1,299 @@
+/*
+ * The token set. Every colour, radius, space and type size in this window comes from here.
+ *
+ * ONE BLOCK, BECAUSE THERE IS ONE THEME. Three blocks — a light `:root`, a `prefers-color-scheme`
+ * block guarded by `:not([data-theme])`, and an explicit `[data-theme="dark"]` last so it beats the
+ * media query — is what a working "auto" costs, and the ordering between them is the whole trick of
+ * it. It is a trick in service of the wrong thing: this window is one object — a blackboard — and a
+ * blackboard does not have a light mode. So: `color-scheme: dark` in render-blocking CSS, and no
+ * attribute, no media query, no stored preference and no toggle.
+ *
+ * THE PALETTE IS A BLACKBOARD: a chalk-green slate running to the edges of the glass, written on in
+ * chalk — the white of it, the coloured sticks of it — with light paper notes magneted to it
+ * wherever something is open. Two inks, two grounds: CHALK ON SLATE for everything that is the
+ * board's (the graph, the instruments, the conversation), and INK ON PAPER for everything pinned to
+ * it (`styles/paper.css` owns the papers and remaps this file's tokens inside every note). There is
+ * no wooden frame and no tray: a frame tells the reader where the board stops, and when the board is
+ * the whole window the glass has already said so.
+ *
+ * EVERY ALPHA BELOW IS PRE-BLENDED TO A SOLID, and that is a law rather than a habit: no surface in
+ * this window is translucent, no glass, no backdrop blur — nothing shows through anything. A "faint"
+ * chalk is chalk with less of it on the slate, computed once against `--board` and written as hex.
+ * The one alpha that survives is pure black in shadows and the scrim, which darken what is under
+ * them without compositing a surface. Element opacity is not used at all: nothing in this window is
+ * drawn faded, and a thing that should read as quieter is drawn in a quieter ink.
+ *
+ * WHAT THE BOARD DOES NOT INCLUDE, permanently: scanline overlays, screen flicker, chromatic
+ * aberration, glow on any text, gloss on any surface. The chalk reads as chalk by texture, hue and
+ * a hand-drawn wobble (`ChalkDefs.tsx`), never by bloom — the magnets are the one shiny thing, and
+ * their glint is painted in solid stops.
+ */
+
+:root {
+  /* The browser's own hint, so the caret, the form controls and the canvas beyond the body are
+     painted in this palette too. It is a declaration rather than a script's assignment, which is why
+     there is no first-paint problem to solve. */
+  color-scheme: dark;
+
+  /* -- the slate ------------------------------------------------------------------------------ */
+  /* The board itself, and its two recesses. A well is DARKER than the slate — a place rubbed back
+     to the surface — which is the reversal every component reading `--bg-subtle` gets for free.
+     `--bg-app` is the alias for callers that ask for the app's ground: that ground IS the board. */
+  --board: #2e3a34;
+  --board-well: #242d29;
+  --board-well-deep: #1e2622;
+  --bg-app: var(--board);
+
+  /* Chalk DUST as fills: the residue a palm leaves on slate. Lighter than the board, never light —
+     a filled chip, a hovered row, a pressed control. */
+  --bg-panel: #38433c;
+  --bg-subtle: var(--board-well);
+  --bg-hover: #465049;
+  --bg-active: #515a52;
+
+  /* Behind a modal. Pure black at six tenths: the room's lights dropping, not a surface — the one
+     composite the no-transparency law licenses, alongside the shadows. */
+  --bg-scrim: rgba(0, 0, 0, 0.6);
+
+  /* -- the grid ------------------------------------------------------------------------------- */
+  /*
+   * The ruling the board is squared off in, read only by `graph.css`, which paints them as gradient
+   * layers on `.graph__grid` — a layer over the whole canvas whose `background-position` is the
+   * reader's pan and whose `background-size` is their zoom, so the squares travel under a drag and
+   * grow under a zoom exactly as the boxes do. Deliberately NOT the transformed element, which would
+   * clip the ruling to the layout's own extent; that rule states the argument.
+   *
+   * THEY ARE COMPUTED AGAINST THE SLATE AND NOTHING ELSE. A pair tuned against a near-black terminal
+   * — `#1c1a16` and `#232019`, within a few percent of that ground — would read on this board as two
+   * grades of black scratch. These are the same idea computed against
+   * the surface that is actually there — chalk pigment `#ece9dc` laid over `--board` at 3.5% for the
+   * minor and 7% for the major, pre-blended to solid per the law above. Faint enough that the grid
+   * is a sense of place rather than a ruling, and far enough apart that the coarse line is legible
+   * where it crosses a fine one.
+   */
+  --grid-minor: #35403a;
+  --grid-major: #3b4640;
+
+  /* -- chalk ---------------------------------------------------------------------------------- */
+  /* The white stick, at five pressures, each pre-blended over `--board` from pigment #ece9dc:
+     full (1.0), strong (0.9), the working ladder (0.65 / 0.45 / 0.25), and the two whispers the
+     wires ride on (0.14 for a stroke's dust pass, captured above as the fill ladder for boxes).
+     `--text` at ~9.9:1 on the board; `--chalk` at ~5:1 and never asked to carry body text below
+     14px; `--chalk-dim` is furniture only. */
+  --chalk-full: #ece9dc;
+  --chalk-strong: #d9d8cb;
+  --chalk: #aaaca1;
+  --chalk-dim: #848980;
+  --chalk-faint: #5e665e;
+  --chalk-ghost: #49524c;
+
+  /* -- lines ---------------------------------------------------------------------------------- */
+  /* Chalk pressures under the border names: hairlines between things are faint chalk, the edge of a
+     control is the working chalk — WCAG 1.4.11's 3:1 is cleared by `--border-control` at ~5:1. */
+  --border: var(--chalk-faint);
+  --border-strong: var(--chalk-dim);
+  --border-control: var(--chalk);
+
+  /* -- text ----------------------------------------------------------------------------------- */
+  /* Full-pressure chalk for the words, and the ladder under it. BODY TEXT IS NOT PURE WHITE:
+     9.9:1 is already past AAA, and the ceiling above it is kept for nothing — nothing on a
+     blackboard outshines the chalk. */
+  --text: var(--chalk-full);
+  --text-secondary: #bdbdb2;
+  --text-muted: var(--chalk);
+  --text-inverse: #22271f;
+
+  /* -- accent --------------------------------------------------------------------------------- */
+  /* THE YELLOW STICK. One coloured chalk is the window's voice — buttons, links on the board, the
+     focus ring, the selection — chosen yellow because no record family wears it (the thesis amber
+     is duller and darker) and because yellow chalk is what a hand reaches for to circle a thing.
+     ~8.2:1 on the board. On paper the accent is blue ink; paper.css remaps it. */
+  --accent: #e2c680;
+  --accent-hover: #ecd49a;
+  --accent-text: #2a2415;
+  --focus: var(--accent);
+
+  /* -- meaning -------------------------------------------------------------------------------- */
+  /* Four states, used for text and small marks only, each a coloured chalk mixed toward the white
+     stick so it reads at a stroke's width. The tinted grounds are chalk-dust fills with a breath of
+     the hue — quiet, because a filled danger surface on a board that already asks before
+     destroying would be shouting twice. `--info` IS the accent. */
+  --ok: #9dccbf;
+  --warn: #d9c197;
+  --danger: #dbb5b9;
+  --info: var(--accent);
+  --ok-bg: #364440;
+  --warn-bg: #43443a;
+  --danger-bg: #443d3c;
+  --info-bg: #434136;
+
+  /* -- diff ----------------------------------------------------------------------------------- */
+  /* THERE ARE NO DIFF TOKENS, because nothing in this window draws a diff. A green face, a pink face
+     and their two inks declared here would be verbatim copies of `paper.css`'s — the same four
+     values in two files, guaranteed to disagree the first time either palette is tuned. Whatever
+     draws a diff should take its colours from the material sheet, which is where a paper's face and
+     its ink are decided. */
+
+  /* -- radii ---------------------------------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* -- space ---------------------------------------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* -- type ----------------------------------------------------------------------------------- */
+  /*
+   * TWO FACES, AND ONE LINE DECIDES WHICH.
+   *
+   * THE MONO IS FOR TECHNICAL DATA. THE SANS IS FOR EVERYTHING ELSE.
+   *
+   * Technical data is code wherever it appears, the record ids and names that came off the wire or
+   * out of the database, file paths, keyboard shortcuts, timestamps and numeric readouts, and the
+   * icon glyphs — those last for the metrics rather than for the voice, since a dingbat centred in a
+   * 28px square is placed by its advance width. Everything else is the sans: body prose, chat
+   * messages, button labels, panel and section titles, field labels, empty states, toasts.
+   *
+   * THE QUESTION IS WHAT THE STRING IS, NOT WHO WROTE IT, and that is worth stating because the
+   * obvious alternative reading — everything the machine touched takes the mono — cuts in the wrong
+   * place. A chat message went on the wire byte for byte and is still read as speech, at length, so
+   * it takes the sans; a record's name was chosen by a person and is still an identifier somebody
+   * has to match against a row, so it takes the mono. What the mono buys is that a character is
+   * exactly the character it is, and it is worth its slower reading rate only where that matters.
+   *
+   * THERE ARE NO SIZE FLOORS HERE ANY MORE. Two of them stood in this block — one face unreadable
+   * below 16px, another below 13 — and they were measurements of handwriting faces this window no
+   * longer ships. The sans is a text face designed for running copy and stays legible well under
+   * both numbers, so the rules that used to buy their way past a floor (`.chip` at 12px is the
+   * standing example) simply follow the rule above. A size in this window is now argued from the
+   * surface it sits on rather than from what its face could survive.
+   */
+  --font: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --leading-tight: 1.35;
+  --leading-normal: 1.6;
+
+  /* -- layout --------------------------------------------------------------------------------- */
+  /* The corner stack reads this as a distance to keep clear of the board's title corner; nothing
+     else does. The conversation dock's rectangle is NOT here: `state/chatDock.ts` is arithmetic
+     rather than decoration, and a length declared here would be a second copy it could only guess
+     at. */
+  --header-height: 44px;
+
+  /* The margin every floating thing keeps off the window's edges.
+     IT IS NOT A THING ON SCREEN. The board runs to the glass, so this is not a frame's width or a
+     shell's padding with floaters sitting inside it: it is an agreement among the notes, the corner
+     instruments and the conversation about how far in from the edge they each stop.
+     `state/chatDock.ts` and
+     `state/notes.ts` mirror the number as their own constants, on the bargain those files name —
+     arithmetic that must do sums with it cannot read a stylesheet. */
+  --float-inset: 12px;
+
+  /* -- depth ---------------------------------------------------------------------------------- */
+  /* Pure-black shadows only — the one place alpha lives, per the header. Paper throws the small
+     one; the dock and the dialog throw the big ones; nothing on the slate itself throws any,
+     because chalk has no thickness. */
+  --shadow-paper: 2px 4px 4px rgba(8, 10, 9, 0.42);
+  --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.42);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  /* -- node families -------------------------------------------------------------------------- */
+  /*
+   * FIVE FAMILIES, NOT THIRTEEN HUES — the argument lives with `lib/family.ts`. The material is what
+   * this file decides: a family is a COLOURED STICK OF CHALK,
+   * each raw hue mixed 45% toward the white stick so it reads as pigment on slate rather than as
+   * paint, and each family owns three values for three jobs. The bare hue is the LINE — a wire's
+   * bright pass, a port dot, a node's divider. The `-faint` is the wire's DUST pass, the same hue
+   * nearly drowned in the board (0.16), which is what makes a chalk stroke read as drawn rather
+   * than plotted. The `-strip` is a low FILL for anything that still wants a family ground.
+   *
+   * The sixth colour every family also owns is a PAPER — lavender, yellow, blue, green, pink — but
+   * papers are meaning on the other material and live in `styles/paper.css` and `state/notes.ts`,
+   * not here: a family's chalk and a family's paper are read together, never mixed.
+   */
+  --fam-recipe: #c7bedd;
+  --fam-recipe-faint: #464f4f;
+  --fam-recipe-strip: #444b53;
+  --fam-thesis: #d9c197;
+  --fam-thesis-faint: #495044;
+  --fam-thesis-strip: #4a4c3c;
+  --fam-source: #9dccbf;
+  --fam-source-faint: #40514a;
+  --fam-source-strip: #365049;
+  --fam-script: #aec0d8;
+  --fam-script-faint: #424f4e;
+  --fam-script-strip: #3c4c51;
+  --fam-derived: #dbb5b9;
+  --fam-derived-faint: #4a4e49;
+  --fam-derived-strip: #4b4847;
+
+  /* -- motion --------------------------------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --duration-fast: 90ms;
+  --duration: 160ms;
+
+  /* -- stacking ------------------------------------------------------------------------------- */
+  /*
+   * EVERY FLOATING LAYER CARRIES ITS OWN NUMBER, and that is the arrangement worth stating. One
+   * shared `--z-float` settling among themselves by the order App.tsx writes them in is
+   * a rule that reads fine in one file and is invisible from the four stylesheets it actually governs.
+   * NOTHING IN THIS WINDOW IS TRANSPARENT, so a layer that lands on top does not tint what is beneath
+   * it, it REPLACES it, and the order therefore has to be an argument about what may be hidden by
+   * what.
+   *
+   * THE CONVERSATION IS THE BOTTOM OF THE FLOATING STACK. Putting it on top of everything would rest
+   * on the argument that a note parked over it buries the one place in this window where anything can
+   * be asked for — and that mistakes the dock for something that can be lost. It cannot: it is bolted
+   * to one side of the window, top to bottom, at whatever share of it the reader last gave it, and
+   * the reader's own hand is what put a note over it. What a dock on top actually buys is a dock that
+   * cannot be UNCOVERED: a note dragged over the conversation vanishes, and the only way to read it
+   * again is to drag what you cannot see back out from behind what you can. So:
+   *
+   *   the conversation is the DESK — always there, always findable, and the work lies ON it;
+   *   the corner column is the INSTRUMENTS, which the work is read against, so the work covers them —
+   *     but an open ledger is a reading somebody asked for, and it covers the desk like anything else;
+   *   a note is the WORK, and one dragged anywhere in this window must stay on top of all of it.
+   *
+   * The Bin is the cost, and it is paid knowingly: it lives in the corner column, so a note dragged
+   * onto it passes OVER it. The drop still lands — the Bin's rectangle is read at the press and
+   * hit-tested arithmetically (`binTarget.ts`), never by asking what is under the cursor — and the
+   * lit edge shows around the held note rather than through it.
+   *
+   * All three are ABOVE a popover and BELOW a modal, because a confirmation is a question about
+   * something that has already been asked for, and a window it could hide would be a window taking a
+   * decision away. A popover opened INSIDE one of these layers is capped by that layer's own stacking
+   * context — see InfoDot.css, which is the file that has to live with it.
+   */
+  --z-popover: 100;
+  --z-dock: 400;
+  --z-corner: 500;
+  --z-note: 600;
+  /* A MODEL BEING CARRIED TO A SLOT, which is above the work and is the one thing that is. It looks
+     like a violation of the paragraph above and is the exception that paragraph's argument implies:
+     a note is on top of everything because a note is work the reader placed and nothing may bury it
+     — what this covers is neither placed nor kept. It is the translucent copy `ModelPool.css` draws
+     while a model is dragged out of the pool's drawer onto a role slot, it exists only between a
+     pointerdown and the release, and a note lying over it would not merely cover something the
+     reader could move: it would hide a gesture already in flight, and the way back would be to move
+     a note the drag was under. Below `--z-modal`, because a confirmation — which is how a model is
+     taken out of the pool — is a question about something already asked for and must never be the
+     thing that is hidden.
+
+     The pool ITSELF no longer needs a layer: it is a row of the conversation panel's own grid, and
+     it stacks with the panel. */
+  --z-pool: 700;
+  --z-modal: 1000;
+  --z-toast: 2000;
+}

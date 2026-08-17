@@ -1,0 +1,96 @@
+/* Toasts — the window's one transient surface. Owned by Toasts.tsx; see base.css for the rule. */
+
+.toasts {
+  position: fixed;
+  /* `--float-inset`, like every other floating thing — tokens.css calls it "the margin every
+     floating thing keeps off the window's edges", and this stack sat 4px further in than the corner
+     instruments it faces across the bottom of the glass. */
+  right: var(--float-inset);
+  bottom: var(--float-inset);
+  z-index: var(--z-toast);
+  display: grid;
+  gap: var(--space-2);
+  /* Wide enough for a server sentence, narrow enough not to cover the panel it is about. */
+  width: min(380px, calc(100vw - var(--space-5)));
+}
+
+/* A paper scrap: the `paper` class in the markup remaps the tokens, and this rule paints the sheet
+   directly — no separate sheet layer, because a toast is transient and square-cut.
+
+   THE RIGHT PADDING IS THE MAGNET'S FOOTPRINT, the arithmetic `.note__head` does and for the same
+   reason: the stone is 6px in from this scrap's edge and 18px across, so it owns the first 24px of
+   the corner, and a sentence that ran under it would be a sentence with a glossy bead on it.
+   `--space-6` is 32px — the stone's outer edge plus a gap — measured from the face itself, because a
+   toast has no inset sheet layer of its own. The `gap` that used to separate the body from the ✕
+   went with it: the magnet is absolutely positioned, so this flex row has one child and a gap here
+   would be a declaration that spaces nothing, which is exactly what makes the next reader assume
+   something is handled. */
+.toasts__item {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--space-2) var(--space-6) var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: 2px;
+  background: var(--paper-bg);
+  /* THE SANS, WHICH THE DETAIL LINE BELOW TAKES BACK. A toast is two strings and `state/store.ts`
+     draws the line between them: the `text` is a sentence this window wrote about what just
+     happened, and the `detail` is the server's own wording kept on a line of its own and never
+     merged into it. This rule dresses the scrap, so it sets the face the first of those wants —
+     prose, read once, in a 380px column — and the second says so for itself. */
+  font-family: var(--font-sans);
+  box-shadow: var(--shadow-paper);
+  animation: toast-in var(--duration) var(--ease);
+}
+
+/*
+ * THE MAGNET, WHICH IS THE DISMISS. Two classes for the two fights `.note__close` documents and this
+ * one shares: `.paper__magnet` is inert by default, because a stone at `z-index: 3` over somebody
+ * else's words must not eat their presses, and this one is the control; and a `<button>` arrives
+ * with the UA's border, padding and background, any of which would show as a square behind an 18px
+ * circle.
+ *
+ * NO POSITION OF ITS OWN. A toast's face IS its housing — there is no inset sheet layer here — so
+ * the material's 6px corner lands where it should with nothing restated, and the padding above is
+ * cut to that same number rather than to one this rule invented. What it is placed AGAINST is the
+ * scrap, which is `position: relative` by way of `.paper` and now load-bearing for it: a `position`
+ * declared on `.toasts__item` at equal specificity would be a coin toss re-tossed every build, so
+ * that rule states none and this is the note saying why.
+ */
+.toasts__close.paper__magnet {
+  padding: 0;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.toasts__body {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+}
+
+.toasts__detail {
+  color: var(--text-secondary);
+  /* THE MONO, AND THIS IS THE HALF THAT EARNS IT. This line is the machine's wording verbatim — a
+     refusal handed back unreworded, an installer's error, whatever the server had to say — and it
+     is the part somebody copies into a bug report or matches against a path they can see. The
+     sentence above it is written for a reader; this one is quoted to them. */
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  /* A refusal can be a long sentence and every word of it is the repair instruction. */
+  overflow-wrap: anywhere;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

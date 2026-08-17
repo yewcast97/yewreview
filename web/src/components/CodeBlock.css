@@ -1,0 +1,221 @@
+/*
+ * The code block: a dark object lying on a light sheet of paper — and, since the conversation
+ * started colouring its own fences, on the slate of the chat dock too.
+ *
+ * TWO IMPORTERS, AND THAT IS THE EXCEPTION TO THIS DIRECTORY'S ONE RULE. `styles/base.css` says a
+ * panel owns one stylesheet and nothing else imports it; this one is imported by `CodeBlock.tsx`,
+ * which draws a stored script on a note, and by `MarkdownView.tsx`, which draws a fenced block in an
+ * answer. They are the same object — same chrome, same header, same copy button, same gutter — and
+ * two copies of it would differ on the first tweak either one wanted. `markdown.css` already carries
+ * the same exception for `UserMessage.tsx` and states it the same way.
+ *
+ * EVERY COLOUR HERE IS A LITERAL AND THAT IS DELIBERATE, in a window where hard-coded colour is
+ * otherwise a mistake. The block sits inside a note, and `styles/paper.css` remaps this project's
+ * whole palette inside a `.paper` subtree — `--text` becomes ink, `--bg-subtle` becomes a tint of the
+ * sheet — precisely so that components written for the board work unchanged on paper. Every one of
+ * those tokens is now a dark ink meant for a light ground, and this block's ground is `#282c34`. Ask
+ * it for `--text` and you get near-black on near-black. So the block does not ask: it wears One Dark
+ * Pro's own values, the same ones `lib/highlight.ts` puts inline on every token span, and the two
+ * agree because they come from the same theme.
+ *
+ * The material law is satisfied on its own terms rather than by exemption: every value below is a
+ * solid hex with no alpha, and the one alpha is pure black in a shadow, which is the composite the
+ * law licenses.
+ *
+ * WHY A DARK BLOCK ON PAPER AT ALL, when everything else on a note is ink. Because a script is the
+ * one thing on a record that is a PROGRAM. The rest of a note is what this window has to say about a
+ * row; the source is the machine's own text, unaltered, and the reader is auditing it against what
+ * they would see in the editor it was written in. A block that looked like the note around it would
+ * be this window claiming the program as its own writing.
+ */
+.codeblock {
+  min-width: 0;
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-sm);
+  /* The theme's ground stated here as well as inline on shiki's own `<pre>`, so the head strip and
+     the rounded corners have something to sit on before the highlighter has painted. */
+  background: #282c34;
+  /* Clips shiki's square-cornered `<pre>` to the radius. Safe here in a way it is not on the note
+     itself — this block has no deckle to slice, it is a machine-made object with real edges. */
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * The strip along the top: what the thing is, and the one control it has.
+ *
+ * One shade below the ground, which is how a title bar reads without a border — the edge between
+ * them is the only line needed, and it is made of two solids meeting rather than of a rule drawn
+ * between them.
+ */
+.codeblock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: #21252b;
+}
+
+/* The language: `python` is the interpreter's own name, and it is also the token a reader would type
+   into a fence to get this block back. It belongs to the object rather than to the strip it is
+   printed on, so it takes the mono the program below it is set in. */
+.codeblock__lang {
+  color: #7f848e;
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+}
+
+/*
+ * The copy. A word rather than an icon, because this is the one control in the window whose whole
+ * value is that the reader is certain it fired — and it says so by becoming the past tense of
+ * itself. `min-width` holds the strip still through that swap: "copy" and "copied" are different
+ * widths, and a button that resized under the pointer would twitch every time it worked.
+ *
+ * IN THE MONO AND NOT THE SANS, which is a deliberate exception to the rule that a button's label is
+ * a word this window chose. It is that, and it is also the only text on this object's chrome besides
+ * `python` two inches to the left — and this object is an editor's window quoted onto a sheet of
+ * paper, colours and all. A proportional verb on the chrome of a code block would be the one place
+ * in the window where the two voices are mixed inside a single object.
+ */
+.codeblock__copy {
+  /* THE PADDING IS IN THE FIGURE BECAUSE THE BOX IS A BORDER BOX. `base.css` sets
+     `box-sizing: border-box` on everything, so `min-width` is a floor on the PADDED width, and a bare
+     `6ch` is smaller than "copy" plus its own 16px of padding — the floor never binds, and the strip
+     twitches by the two characters between the two words on every press, which is the exact thing
+     this line is here to stop. Six characters is "copied", the wider of the two states. */
+  min-width: calc(6ch + var(--space-2) * 2);
+  margin: 0;
+  padding: 2px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #21252b;
+  color: #abb2bf;
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.codeblock__copy:hover {
+  background: #2c313a;
+  color: #ffffff;
+}
+
+.codeblock__copy:focus-visible {
+  outline: 2px solid #61afef;
+  outline-offset: -2px;
+}
+
+/*
+ * The program.
+ *
+ * SHIKI WRITES THE BACKGROUND AND THE TEXT COLOUR INLINE on this element and they are left alone —
+ * they are the theme's, they are solid, and they are the same pair the block above declares. What is
+ * set here is everything shiki has no opinion about.
+ *
+ * IT SCROLLS SIDEWAYS RATHER THAN WRAPPING, which is the opposite of `.viewer__prose-text` beside it
+ * and is right for the same reason that one wraps. Prose has no columns; a program does. Indentation
+ * in Python IS the block structure, and a wrapped line is a continuation that looks exactly like a
+ * new statement at the wrong depth — the one misreading this whole block exists to prevent. It is
+ * also the call `markdown.css` already made where a script appears in the conversation: a script
+ * keeps its lines.
+ *
+ * The vertical cap is `.viewer__prose-text`'s, for its reason: a note is a record, and the edge
+ * lists below the source have to stay reachable without scrolling past a thousand-line program.
+ * `.note--sized` lifts nothing here — a reader who wants more of the script at once drags the note
+ * taller and this scrolls inside it, which is the same bargain every other block on the sheet makes.
+ */
+.codeblock__body pre.shiki {
+  margin: 0;
+  max-height: 32em;
+  padding: var(--space-3);
+  overflow: auto;
+  /* Stops a wheel that reaches the end of the program from carrying on into the note's own scroll
+     and then into the board behind it. */
+  overscroll-behavior: contain;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  tab-size: 4;
+}
+
+/*
+ * THE SCROLLBAR IS THE ONE COLOUR THE BLOCK CANNOT SET WITH A LITERAL ANYWHERE ELSE, and without
+ * these rules it is the one thing here that still asks the paper. `base.css` styles every scroller
+ * in the window, and inside a note `paper.css` has remapped that token to the sheet's own dark ink
+ * — so this block would draw a `#5a564b` thumb on a `#282c34` ground at about 1.9 to one, which is
+ * the header's "ask it for a token and you get near-black on near-black" arriving through a
+ * selector the block never wrote. One Dark Pro's own two greys instead: `#5c6370` on that ground is
+ * about 2.3 to one, which does NOT reach the 3:1 the token set cites for a control and is the most
+ * this theme's own chrome has to offer — the alternative was not a better ratio but a worse one.
+ *
+ * SAID TWICE AND FENCED APART, on the rule `base.css` argues at its own scrollbars. A bare
+ * `scrollbar-color` sitting in the block above would be enough by itself to drop these `::-webkit-`
+ * rules and hand this one element back the invisible overlay bar — the colour would be right and
+ * the scrollbar would not be there to wear it. Same two greys either way; each engine reads only
+ * its own spelling.
+ *
+ * `background-color` AND NOT `background`, which is the whole of what this block is entitled to
+ * change here. The shorthand also writes `background-clip`, and what it would write is the initial
+ * value — undoing the `content-box` that insets every other thumb in the window inside its own 3px
+ * of transparent border, and drawing this one alone as a bar the full ten pixels wide.
+ */
+.codeblock__body pre.shiki::-webkit-scrollbar-thumb {
+  background-color: #5c6370;
+}
+
+.codeblock__body pre.shiki::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}
+
+@supports (-moz-orient: inline) {
+  .codeblock__body pre.shiki {
+    scrollbar-color: #5c6370 transparent;
+  }
+}
+
+/*
+ * The focusable region's ring, drawn INSIDE it.
+ *
+ * Shiki puts `tabindex="0"` on its `<pre>` so a reader on a keyboard can scroll a long program, which
+ * makes this the one focusable thing in the block besides the copy — and `.codeblock` clips to its
+ * radius, so a ring drawn outside the pre's box would be sliced off on three sides by that clip. A
+ * negative offset draws it just inside the padding instead, where nothing clips it.
+ */
+.codeblock__body pre.shiki:focus-visible {
+  outline: 2px solid #61afef;
+  outline-offset: -2px;
+}
+
+/*
+ * The gutter, and it only exists on a program long enough to need one — `needsLineNumbers` decides,
+ * and the argument for the threshold is at that function.
+ *
+ * A COUNTER RATHER THAN NUMBERS IN THE MARKUP, which is what keeps the copy button honest: the
+ * digits are generated content, so they are not in the DOM text, not in a selection dragged across
+ * the block, and not in anything the clipboard could pick up. A reader who selects three lines of a
+ * script gets three lines of Python.
+ *
+ * The numbers scroll horizontally with their lines, which is the accepted cost of `overflow: auto`
+ * on the element they are drawn inside. Pinning them would mean a second scroll container beside
+ * this one, kept in sync on every frame, to hold a column of grey digits still.
+ */
+.codeblock--numbered .codeblock__body code {
+  counter-reset: line;
+}
+
+.codeblock--numbered .codeblock__body .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  /* Three digits before anything moves, and a wider count pushes the code right rather than
+     shearing the column — scripts here are capped at 256 KB and can pass a thousand lines. */
+  width: 3ch;
+  margin-right: var(--space-3);
+  color: #495162;
+  text-align: right;
+  user-select: none;
+}

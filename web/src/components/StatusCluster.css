@@ -1,0 +1,199 @@
+/*
+ * The status cluster, and the health badge inside it. Owned by StatusCluster.tsx; see the stylesheet
+ * convention at the top of base.css.
+ *
+ * Two block prefixes in one sheet — `status__` and `health__` — because `HealthBadge` is rendered in
+ * this cluster and nowhere else, so the two ARE one surface, and a selector still says which of them
+ * it dresses. Nothing in here is measured against a column: this is a pill in a corner.
+ */
+
+/* -- the cluster --------------------------------------------------------------------------------- */
+
+/*
+ * A small raised pill at the bottom of the corner stack.
+ *
+ * A FLEX ITEM OF `.lcd-stack`, NOT A FIXED ELEMENT OF ITS OWN. Pinning itself to the corner would
+ * leave the read-outs above it clearing it by a hard-coded `--lcd-clearance` — a promise two
+ * stylesheets have to keep in step by hand, and the first thing to break if either grows. As the last
+ * child of the column it keeps the corner the way a bottom-anchored stack keeps anything: by being
+ * at the bottom of it. When a ledger above expands, the pill does not move, because the column
+ * grows upward from an edge this pill is sitting on.
+ *
+ * IT NEEDS ITS OWN SURFACE, which a pill inside a panel would not. This floats over a canvas whose
+ * wires and boxes run underneath, and unfilled text over a
+ * moving picture is unreadable at exactly the moment somebody looks for it. So it is a small
+ * chalk-dust fill on the slate — opaque, per the board's material law — with a chalk hairline for
+ * an edge and NO shadow: it sits on the board the way everything chalked does, and only paper
+ * throws shadows here. It is not an `.lcd`, which is also what makes its own popover legal — see
+ * the detail panel below.
+ */
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-panel);
+}
+
+/* -- the health badge ---------------------------------------------------------------------------- */
+
+/* The positioning context the detail panel hangs off. */
+.health {
+  position: relative;
+}
+
+/* Rounded to match the pill it sits in, and no wider than a couple of words: a model identifier is
+   long, this corner is not, and the whole reading is in the panel a hover away. */
+.health__badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 220px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  text-align: left;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.health__badge:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* THE MONO, because this line is a BUILD IDENTIFIER. `HealthBadge` argues that the version is here
+   precisely so somebody can read it back — into a bug report, to another person's window — and a
+   version is a string where the difference between 1.10.0 and 1.1.0 is the whole message. */
+.health__summary {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health__dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+}
+
+/* THE LAMPS DO NOT GLOW — chalk marks on slate, per the board's no-glow law. Size and shape carry
+   what a halo would: the dots are two pixels bigger, and amber and danger are
+   squared off so a reader who cannot separate the hues is still told by the corners. */
+.health__dot--ok {
+  background: var(--ok);
+}
+
+.health__dot--warn {
+  background: var(--warn);
+  border-radius: 2px;
+}
+
+.health__dot--danger {
+  background: var(--danger);
+  border-radius: 2px;
+}
+
+.health__dot--muted {
+  background: var(--text-muted);
+}
+
+/*
+ * The full reading, above the badge.
+ *
+ * IT OPENS UPWARD, because the cluster is pinned to the bottom of the SCREEN and up is the only
+ * direction with room in it. Left-aligned to the badge and given a width of its own — there are no
+ * column edges here for it to stretch between — capped against the viewport so a narrow
+ * window gets a panel that fits rather than one that runs off the right.
+ *
+ * Hidden with `visibility` rather than removed: a hover then reveals it with no state change at all,
+ * and a keyboard still cannot land on the install button inside a panel nobody has opened.
+ */
+/* A small paper note pinned up by the badge — it wears `paper` in the markup, so ink
+   answers every token inside it. DELIBERATELY NO DECKLE: it opens on hover and is read in a
+   glance, and a crisp 2px-cornered slip is the difference between a tooltip and a prop. Paper is
+   the one thing on the board allowed a shadow.
+
+   TWO CLASSES BECAUSE `.paper` DECLARES `position: relative` — at equal specificity the bundler's
+   emission order decides, and the losing order leaves a hidden popover IN FLOW, silently inflating
+   the pill to the popover's size. The extra class is the fix, per the rule at the top of
+   graph.css. */
+.health .health__detail {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  z-index: var(--z-popover);
+  display: grid;
+  gap: var(--space-2);
+  width: min(280px, calc(100vw - var(--space-5)));
+  padding: var(--space-3);
+  border: 0;
+  border-radius: 2px;
+  background: var(--paper-bg);
+  box-shadow: var(--shadow-paper);
+  visibility: hidden;
+}
+
+/* ONE SELECTOR, AND `data-open` IS IT. There is no `:hover` rule — the component opens on
+   pointer-enter itself, so `data-open` and the badge's `aria-expanded` cannot disagree with what is
+   on screen. There is no `:focus-within` rule either. It would be defended as keeping the panel up
+   while a keyboard is inside it, "which is exactly when `open` is already true" — but the case where
+   the two differ is the case that matters. Escape sets `open` to false without moving focus, which
+   is the whole point of Escape, and a `:focus-within` rule would hold the panel on screen over a
+   button announcing `aria-expanded="false"`. `InfoDot.css` argues this at length and refuses it too;
+   the two popovers in this window answer the question the same way. */
+.health__detail[data-open="true"] {
+  visibility: visible;
+}
+
+.health__rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.health__row {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+}
+
+.health__row dt {
+  flex: 0 0 60px;
+  color: var(--text-muted);
+}
+
+/* The VALUE half of the reading, in the mono: a schema version, an engine version, and the three
+   one-word states beside them. What a reader does with this column is compare it against a number
+   somebody quoted them, which is the mono's job. The `<dt>` beside it keeps the sans, because
+   Schema, Engine, Sandbox and Database are this window's names for four questions rather than
+   anything the server said. */
+.health__row dd {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font);
+  /* The server's own values come through here — an engine version, a state — and none of them are
+     guaranteed a space to break at. */
+  overflow-wrap: anywhere;
+}
+
+.health__note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.health__action {
+  width: 100%;
+}

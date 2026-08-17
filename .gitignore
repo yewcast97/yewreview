@@ -1,0 +1,76 @@
+# Credentials. Never commit these.
+#
+# `.env.*` is deliberately broad — it catches .env.local, .env.production, the .env.bak.* a careless
+# edit leaves behind, and whatever variant someone invents next. The one exception is the template,
+# which carries names and no values and has to stay tracked for `cp .env.example .env` to mean
+# anything; the negation must sit after the wildcard or the wildcard wins.
+#
+# Note this file only protects what is not yet tracked. `git rm --cached` is what removes something
+# already committed, and a secret that has been pushed is compromised regardless — rotate it rather
+# than tidying up the history.
+.env
+.env.*
+!.env.example
+.credentials.json
+**/.credentials.json
+secrets.json
+*.secret
+.npmrc
+.netrc
+# Private keys and certificates, wherever they land in the tree.
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ecdsa*
+id_ed25519*
+
+# Claude Code local state. `settings.local.json` is this machine's permission grant and
+# `.credentials.json` is the login itself; neither belongs to anyone but this checkout. A shared
+# `.claude/settings.json` stays committable, so the rules name the local files rather than the
+# directory.
+.claude/settings.local.json
+.claude/*.local.json
+.claude/.credentials.json
+CLAUDE.md
+
+# Runtime data. `var/` holds the database, the dataset and the venv; the database stores the NAMES of
+# credential environment variables and never their values, but the tree is machine-local either way.
+# The loose database globs are belt and braces: `--var-dir` can put the file anywhere.
+var/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# JavaScript
+node_modules/
+
+# Build products
+dist/
+build/
+*.bun-build
+
+# Logs
+*.log
+
+# OS and editor droppings
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

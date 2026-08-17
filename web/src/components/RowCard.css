@@ -1,0 +1,131 @@
+/*
+ * The row card: a record shown whole, in the conversation.
+ *
+ * Owned by `rowCard.ts`, which is the only thing that writes these classes. It is drawn inside
+ * `.markdown` — the agent's answer, and the recipe preview on a note — so everything here has to
+ * hold on both grounds, which is why no colour below is a literal: the tokens answer differently on
+ * the board and on paper, and this card is a document either way.
+ *
+ * IT LOOKS LIKE THE CARD A TABLE USED TO GET, and deliberately so. `markdown.css` dressed every
+ * markdown table as a record for years on the argument that a table in an answer is usually a row
+ * put up for agreement; the row block replaced that guess with a grammar, and this sheet inherits
+ * the dressing it was drawn in — the framed object on the panel's own ground, hairlines between the
+ * fields, the field names in the well. What changed is what is being dressed, not how a record
+ * looks.
+ *
+ * THE OUTLINE IS KEPT, which is the one thing this must not lose in the translation. The agent
+ * writes the row as an indent outline — table at the margin, field two spaces in, value two spaces
+ * further — because indentation is how a nesting is said in text. A card that flattened that into
+ * two columns would show the same fields and stop showing the SHAPE, so the value sits indented
+ * under its own name here too, and the card reads top to bottom the way the outline was written.
+ */
+.rowcard {
+  /* A grid item's automatic minimum is content-based; zero is what lets a wide value scroll in its
+     own box instead of widening the message column. The same declaration and the same reason as
+     `.markdown`'s, restated because this card is a block that holds wide things. */
+  min-width: 0;
+  max-width: 100%;
+  margin: var(--space-2) 0;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  /* Clips the header strip's corners to the frame's radius. */
+  overflow: hidden;
+  font-size: var(--text-sm);
+}
+
+/*
+ * The table the row belongs to.
+ *
+ * IN THE MONO, because it is an identifier: `information_source` is the table's name as the schema
+ * spells it, and a reader comparing it against what they know of the archive is reading it
+ * character by character. One shade below the card's ground, which is how a title bar reads without
+ * needing a rule under it — though it takes one anyway, because the fields below are divided by
+ * hairlines and the strongest line on the card should be the one that separates what this IS from
+ * what it holds.
+ */
+.rowcard__table {
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: var(--font);
+  font-weight: 600;
+}
+
+/* One field. The hairline divides it from the field above; the card's own frame draws the outside,
+   so the first one needs no line of its own. */
+.rowcard__field {
+  padding: var(--space-2) var(--space-3);
+}
+
+.rowcard__field + .rowcard__field {
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * The field's name.
+ *
+ * A LABEL RATHER THAN A VALUE, and it says so the way `.viewer__field-name` says it on a note: the
+ * quieter ink, the weight, the mono of a column name. Smaller than the value under it, because on a
+ * card the reader is scanning for the field they care about and reading only that one's text.
+ */
+.rowcard__name {
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  /* An identifier with underscores in a narrow column breaks where it must rather than widening
+     the card. */
+  overflow-wrap: anywhere;
+}
+
+/* The value, indented under its name — the outline's own second step, kept, with a hairline down
+   the indent so a value several paragraphs long still reads as belonging to the field above it. */
+.rowcard__value {
+  min-width: 0;
+  margin-top: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+/* THE ONLY PROSE RULE THIS SHEET WRITES. A value's markdown is set by `markdown.css`, which reaches
+   in here as a descendant because the card is drawn inside the `.markdown` host — so a recipe's
+   headings and lists inside a field look exactly like the same headings and lists in the answer
+   around the card, without a second set of rules to keep in step. What that sheet cannot do from
+   outside is trim the margins at this value's own edges, which is what its `> :first-child` pair
+   does for the message as a whole. */
+.rowcard__value > :first-child {
+  margin-top: 0;
+}
+
+.rowcard__value > :last-child {
+  margin-bottom: 0;
+}
+
+/*
+ * A field nobody has filled in yet.
+ *
+ * `****` IS DRAWN AS THE AGENT WROTE IT rather than replaced with a word of this window's own. It is
+ * the mark the doctrine tells the agent to put there, it is what the reader sees in the outline if
+ * the card ever falls back to a plain fence, and the two views should not disagree about what an
+ * unanswered field looks like. The mono keeps it aligned with the other marks on the card; the
+ * muted ink is what says it is a question rather than an answer.
+ */
+.rowcard__value--empty {
+  color: var(--text-muted);
+  font-family: var(--font);
+  letter-spacing: 0.12em;
+}
+
+/* A program keeps its own object's margins: the code block below already spaces itself, and the
+   frame it draws is the boundary the reader needs. */
+.rowcard__value--code {
+  padding-left: var(--space-2);
+}
+
+.rowcard__value--code .codeblock {
+  margin: 0;
+}

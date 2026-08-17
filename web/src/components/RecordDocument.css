@@ -1,0 +1,100 @@
+/*
+ * The record panel's one document: a recipe, read as the document it is. Owned by
+ * `RecordDocument.tsx` and imported by nothing else; see the stylesheet convention at the top of
+ * base.css.
+ *
+ * IT DRESSED FORMS AND THERE ARE NO FORMS, AND THEN IT DRESSED BUTTONS AND THERE ARE NO BUTTONS.
+ * Every write in this window moved to the conversation, so the rules for a ruled input, a select, a
+ * creator's title and the label of a box somebody types into went with the components that wore
+ * them; then generating a report moved there too, and the action row and the running read-out went
+ * with the controls they held. What is left dresses a document being READ.
+ *
+ * WHAT IS DRAWN HERE DOES NOT CARRY: a HEAD ROW with a grip in it taking the document into the
+ * conversation, a LEDE under a heading, or a per-surface HINT. The first is furniture — a note is a
+ * record being read, and a second way to put something in the composer sits on top of the thing
+ * being read. The other two belong where every explanation in this panel goes, behind the ⓘ beside
+ * the thing it explains (`InfoDot.tsx`) — and there is no heading either, because a heading here
+ * would restate the column name underneath it.
+ *
+ * IT LOOKS LIKE THE RECORD IT SITS IN, and that is deliberate rather than lazy. This panel is an
+ * audit surface: everything else in it is a stored value drawn plainly, and a document dressed as a
+ * product page would say that this column is a different kind of object from the row around it. So
+ * the label is its COLUMN NAME, drawn exactly as the field grid draws a column name.
+ *
+ * NOTHING HERE DRESSES A SHARED DOCUMENT. There is no FILM — a shimmering sheet over a surface while
+ * the agent holds a draft of it, where a keystroke landing mid-write is a sentence the write never
+ * saw — and no left edge marking something somebody else has written to. Both would dress a state
+ * that cannot arise: there is one writer, and the reader watches it work in the conversation.
+ */
+
+/*
+ * THE PADDING PAYS FOR THE BORDER, and the one pixel is the whole reason this is a `calc` rather than
+ * a token. This box and a field grid stand one above the other inside the same `.viewer__record`, and
+ * their labels are the same kind of word in the same hand — so they have to start at the same x or the
+ * note reads as two documents. The grid lands its column names at 24px from the sheet: the record's
+ * own 12px, the grid's 4px, the row's 8px. This box would reach 25px, because it is the only one of
+ * the two with a BORDER and it would pay the full 12px on top of it. Neither looks wrong on its own;
+ * the two together look like a hand that has slipped.
+ */
+.document {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: calc(var(--space-3) - 1px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.document__field {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* The column's real name, in the sans. A reader auditing this document should be able to see which
+   column of the row it is — and the column name is a LABEL, the same word the schema uses said as
+   this surface's own word for what is under it, rather than anything stored. It is set solid, like
+   the record's own column names in `NoteBoard.css`: this box and a field grid stand one above the
+   other in the same note, and a tracked label over an untracked one reads as a hand that has
+   slipped. */
+.document__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/*
+ * The recipe: the specification rendered as the document it is.
+ *
+ * Framed with the CONTROL border rather than the hairline, and the frame is the point — this is a
+ * PAGE inside a note of field rows, long enough to be scrolled on its own, and a reader needs to see
+ * where it starts and stops. It is inert: no `cursor: text`, no hover, nothing that promises the
+ * surface will react, because clicking it does nothing and a frame that offered otherwise would be
+ * furniture that lies. Capped and scrolling for the same joins-below-the-fold reason the record
+ * panel caps its prose blocks at 32em.
+ */
+.document__page {
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  padding: var(--space-2) var(--space-3);
+  max-height: 32em;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* What stands where the document would be, on a version that records nothing. It is the one sentence
+   on this surface that is the window speaking rather than the recipe — and since the recipe is
+   set in the sans too, what separates them is the muted ink rather than the face. */
+.document__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}

@@ -1,0 +1,130 @@
+/*
+ * The session unit's own layout. Owned by SessionPanel.tsx; the MATERIAL it is made of is `lcd.css`,
+ * and the chip-to-panel REVEAL it rides is `Ledgers.css` — the component wears `lcd ledger sessions`
+ * and imports all three sheets, so this file is only what is true of no other unit.
+ *
+ * SO THIS FILE IS ONLY GEOMETRY, and that split is the point of having the sheets it leans on. A
+ * rule in here that set a colour would be a second opinion about what an instrument looks like, and
+ * a rule that re-stated the reveal would be a second animation to keep in step with the first.
+ *
+ * NO `position` ANYWHERE IN HERE. This read-out is a flex item of `.lcd-stack`, which is the fixed
+ * thing — see the compositing rule in `lcd.css`, and note that a `position: fixed` here would take it
+ * out of that column and stack it on top of the LOG chip below it.
+ *
+ * THE TWO WIDTHS ARE THIS UNIT'S OWN. The closed chip is wider than the ledgers' because "Sessions"
+ * is a longer word than the one engraved on either of theirs; the open panel is narrower because a
+ * summary truncates where a traceback wraps. Both land on `Ledgers.css`'s custom properties, so the
+ * reveal machinery needs no third state. The height cap is tighter than the ledgers' for the reason
+ * the width is: this is a list of clickable targets, not a document to read down.
+ */
+
+/* Three classes, not because anything contests these PROPERTIES by name, but because the ledger
+   pattern declares its defaults at `.lcd.ledger` — a custom property is still a declaration, and a
+   single-class override loses to it on specificity, not on bundler order. */
+.lcd.ledger.sessions {
+  --ledger-closed-w: 116px;
+  --ledger-open-w: 260px;
+}
+
+/*
+ * THERE IS NO HEADROW HERE, AND NOTHING THAT WOULD NEED ONE. Two controls side by side — the toggle,
+ * and a button that puts the conversation down and starts a fresh one — would need a flex row of its
+ * own, a re-drawn ruled title line for the open state, and a three-class override giving the toggle
+ * back the corner the ledgers' heads take whole. The BROOM lives in the dock's header, where it is on
+ * screen at all times, so this unit is exactly a ledger and wears the ledgers' own head rules
+ * unmodified.
+ */
+
+/* Tighter than the ledgers' 56vh — see the header. Three classes against `.ledger__body`'s own
+   cap for the bundler-order reason above. */
+.lcd.ledger.sessions .ledger__body {
+  max-height: 40vh;
+}
+
+.sessions__list {
+  min-width: 0;
+}
+
+/* A row is `.lcd__row` plus the one thing that is true only here: it is a control, so it says so to
+   the pointer. */
+.sessions__row {
+  cursor: pointer;
+}
+
+/* Except the live one, which is a read-out — the conversation it names is already on screen in the
+   dock, so there is nothing for a click to do and the row must not claim otherwise. Three classes
+   to outrank `.lcd__row:hover`'s lightening whatever order the bundler emits the two sheets in. */
+.lcd__row.sessions__row--live {
+  cursor: default;
+}
+
+.lcd__row.sessions__row--live:hover {
+  background: transparent;
+}
+
+/*
+ * The live marker.
+ *
+ * A fixed width so the summaries line up in a column whether or not their row is the live one — a
+ * filled dot and a hollow one are not the same width in every font, and a text column that shifted by
+ * a pixel between rows would look like a rendering fault.
+ */
+.sessions__mark {
+  flex: 0 0 auto;
+  width: 0.8em;
+  text-align: center;
+}
+
+/*
+ * The SDK's summary, which is as long as whatever it decided to write.
+ *
+ * It takes the space and gives it back: `1 1 auto` with a zero minimum is what lets it truncate
+ * instead of pushing the age off the end of the row. The age is the item that must never be the one
+ * cut in half — it is four characters and it is why somebody is scanning this list.
+ */
+.sessions__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A FLOOR AND NOT A WIDTH, which is the correction `.log__when` needed too — see that rule. An age
+   is only four characters most of the time: `formatRelative` also says "just now", "yesterday" and
+   "2026-03-14", and this row is a single centred line (`.lcd__row`), so a hard 4.5em would have
+   spilled "yesterday" straight through the panel's right padding. The floor still buys what a fixed
+   width was wanted for — the summaries line up in a column for every ordinary age — and the two long
+   spellings simply take the room they need.
+
+   RIGHT-ALIGNED INSIDE THAT FLOOR, which is the other half of what a floor costs. The age is the LAST
+   thing in the row, so the slack a four-character age leaves in 4.5em falls between the summary and
+   the age — left-aligned, every ordinary age floated a third of the way in from the edge it was
+   measured against, and the column of ages read as ragged on both sides at once. Aligned right they
+   hang off the row's own edge, which is the edge the eye is already using. `.log__when` is left for
+   exactly the same reason read the other way round: there, the age comes first. */
+.sessions__when {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Why the list is empty, or why it may be stale — in the space the rows would have been. Padding and
+   leading are `.log__note`'s exactly: the two are the same sentence in the same place in two adjacent
+   instruments, and they had drifted to 8px of tail against 4 and a tight leading against a normal
+   one. The tail belongs to `.ledger__body` in both. */
+.sessions__note {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  /* The clamp stays HERE and not on `.log__note`: this markup carries the whole sentence on `title`
+     and the log's does not, so a clamp there would lose words with no way to read them.
+     A server's sentence can be a paragraph; it says as much as fits and the `title` has the rest. */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}

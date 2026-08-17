@@ -1,0 +1,14 @@
+{
+  // The window's half of the project. Everything strict about the root config is inherited; what
+  // changes here is only what a browser needs and a server must not have — JSX, the DOM, and no
+  // `@types/bun`. Dropping Bun's types is the point of `"types": []`: it is what makes a `Bun.file`
+  // or a `bun:sqlite` import in this tree a compile error rather than something that works until
+  // the bundle reaches a browser.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src"]
+}

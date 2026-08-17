@@ -1,0 +1,168 @@
+/*
+ * The instrument vocabulary: the corner units' shared bones. Imported by `SessionPanel.tsx` and
+ * `Ledgers.tsx`, and by nothing else.
+ *
+ * ── WHY THERE IS A SHARED SHEET AT ALL ───────────────────────────────────────────────────────────
+ *
+ * base.css says every panel owns its own stylesheet and that a rule EVERY panel needs belongs down in
+ * base.css as a deliberate move. This is the third case, and it is the one that convention did not
+ * anticipate: a few components — and only they — share the corner-instrument SHAPE. The session
+ * list and the two ledgers are not panels of the application at all; they are read-outs bolted to
+ * the corner of the window, showing what the machine has been doing rather than what the database
+ * holds. Written twice they would drift on the first tweak.
+ *
+ * ── THERE IS NO GLASS ────────────────────────────────────────────────────────────────────────────
+ *
+ * Smoked glass and phosphor — `backdrop-filter`, translucent fills, a bloom on the engraved heads —
+ * is what an instrument looks like on some other material. The blackboard rules all three out at
+ * once: a board bans translucency (nothing shows through a surface), bans glow (chalk has texture,
+ * not light), and answers the problem glass was solving better. The instruments are CHALK when
+ * closed — a chalked chip drawn on the slate, costing the canvas almost nothing — and PAPER
+ * when open, a sticky note pinned over it, which is what "an instrument you glance at" looks like
+ * on this material. The chip chrome lives in `Ledgers.css` on the shared `chalk.css` material; the
+ * open paper is `paper.css`'s. What lives here is the BONES: the head row, the line row, and the
+ * corner column — and `.lcd` itself, the shared hook and the type floor.
+ *
+ * ── THE COMPOSITING RULE, WHICH IS STILL NOT ADVICE ──────────────────────────────────────────────
+ *
+ * An `.lcd` must be a fixed-position sibling of the panels, rendered from `App.tsx` — inside
+ * `.lcd-stack` below — and NEVER inside `.graph__surface`: that element carries the reader's pan
+ * and zoom, and a transform re-roots `position: fixed` to it, so an overlay rendered there would
+ * ride away with the canvas and scale with the zoom. The deckle FILTER on an open unit's paper
+ * sheet makes that element a containing block in the same way — nothing
+ * inside a unit may be `position: fixed` and expect the viewport.
+ *
+ * POSITION IS THE CALLER'S, paint is this sheet's. `.lcd` declares no `position`, `top` or `left`:
+ * every read-out — the session list and the two ledger units, open or closed — is a flex item of
+ * the fixed column below, and the column is the one fixed thing. A `position: fixed` here would
+ * take a flex item out of flow and stack the read-outs on top of each other.
+ */
+
+/* -- the bones ------------------------------------------------------------------------------------ */
+
+/* The hook and the type floor. Colour belongs to the states: the closed chip speaks chalk, an open
+   unit wears a `.paper` class and speaks ink — both arrive through the tokens the rules below
+   read, so nothing here names either material. */
+.lcd {
+  font-size: var(--text-xs);
+}
+
+/*
+ * A read-out's own heading, and the closed chips are one of these on their own: Log, Bin, Sessions —
+ * words this window chose for what it is showing, so the sans, and the one thing on an instrument
+ * that is not the machine's. Sized to be read across a canvas rather than across a room: 18px was
+ * cut for a face that needed the room to read as lettering, and a sans at 16px and 600 says the same
+ * thing without the chip growing around it. Not uppercase: a label on a board is written, not
+ * engraved.
+ */
+.lcd__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+/* The second voice: a deletion, and a warning. One token, one meaning — this is a thing that was
+   destroyed or a thing that went wrong — so the read-outs cannot spend it on emphasis. */
+.lcd__amber {
+  color: var(--warn);
+}
+
+/*
+ * One line of a read-out. A session, an error, a deleted row.
+ *
+ * Written so the same class dresses a `<div>` and a `<button>`: the session rows are clickable and
+ * the log rows are not, and a second class differing only in whether it zeroes a border would be
+ * two spellings of one line. The hover reads the context: on an open unit's paper, `--bg-hover` is
+ * the paper's own wash, because `paper.css` remaps the token inside every sheet.
+ *
+ * THE MONO FOR EVERY ROW, WHICH IS THE HEAD'S OPPOSITE AND IS THE POINT OF AN INSTRUMENT. What a row
+ * holds is what the machine has been doing: a session id and the age of the conversation it names,
+ * an age and a scope and the id of a row somebody deleted, with the deleted row's own JSON folded
+ * under it. Those are scanned down a column of a thousand of them, keyed by time and by id, which is
+ * the reading the mono is for and the reading a proportional face makes worse.
+ *
+ * IT DIVERGES FROM THE TOAST, DELIBERATELY. A refusal's sentence reaches both surfaces and is drawn
+ * in the sans there and in the mono here, which looks like drift and is not: a toast is one sentence
+ * held up on its own to be read once, and here the same sentence is one column of a row in a ledger,
+ * beside the two fields the reader is actually navigating by.
+ */
+.lcd__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  text-align: left;
+}
+
+.lcd__row:hover {
+  background: var(--bg-hover);
+}
+
+/* -- where they hang ------------------------------------------------------------------------------ */
+
+/*
+ * THE BOTTOM-LEFT CORNER, growing upward, and the corner is the whole argument.
+ *
+ * The graph lays its roots out from the TOP left and packs downward, so a read-out anchored there
+ * covers the first thing drawn — on an empty installation it covers all four root boxes, which is
+ * the one screen where a reader most needs to see them. Down here the canvas is empty until somebody
+ * has expanded several rows, and by then they are panning anyway.
+ *
+ * THE STATUS PILL IS THE COLUMN'S LAST CHILD, and that is why no `--lcd-clearance` is needed. A pill
+ * pinning itself to this corner on its own would leave the column starting above it by a hard-coded
+ * constant — a promise two stylesheets keep in step by hand, and the first thing to break if either
+ * grows. As a flex item at the bottom of the column, the pill keeps the corner because the column is
+ * anchored to it, and nothing has to be told anything when a neighbour changes height.
+ *
+ * `pointer-events: none` on the column and `auto` on its children is the other half of not being in
+ * the way. The column is as wide as its widest read-out and as tall as all of them; without this
+ * the empty space between and beside them would swallow drags meant for the canvas underneath, which
+ * is the panel's primary gesture.
+ *
+ * No `position: fixed` on the children — see the header. They are flex items of this column, and this
+ * column is the fixed thing.
+ */
+.lcd-stack {
+  position: fixed;
+  bottom: var(--float-inset);
+  left: var(--float-inset);
+  /* Under the notes and over the conversation. These are instruments the work is read against, so a
+     note covers them; but an open ledger IS a reading somebody asked for, so it covers the desk the
+     work lies on. The Bin is the price and `tokens.css` states it. */
+  z-index: var(--z-corner);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* THE LAW THE LEDGERS' GROWTH ANSWERS TO: however tall an open panel wants to be, the column
+     never grows past the board's title corner, so the session read-out's own head can never be
+     pushed off the top of the window. What gives is the children — every read-out in this column
+     floors at its engraved head and scrolls its rows internally (`min-height: 0` down the chain is
+     what lets flexbox actually compress them) — so a short window gets shorter instruments, never
+     missing ones. `dvh` rather than `vh` for the browsers whose toolbars come and go. */
+  max-height: calc(100dvh - 2 * var(--float-inset) - var(--header-height));
+  pointer-events: none;
+}
+
+.lcd-stack > * {
+  pointer-events: auto;
+}
+
+/* When the clamp binds, the session list gives ground three times as fast as an open ledger: the
+   ledger was just asked for, and the list is the read-out whose rows are most cheaply scrolled. */
+.lcd-stack .sessions {
+  flex-shrink: 3;
+}

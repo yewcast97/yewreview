@@ -1,0 +1,373 @@
+/*
+ * The model pool: a board region drawn INSIDE the conversation, between the transcript and the
+ * composer. Owned by ModelPool.tsx; see the stylesheet convention at the top of base.css.
+ *
+ * IT IS A PIECE OF THE BOARD RATHER THAN A DIALOG, and everything below follows from that. Slate for
+ * a ground, a chalk frame drawn round it as an inert layer, three lines of instruction written on
+ * the slate in the board's own hand, and paper stuck to it. A modal would be the other answer — a
+ * scrim, a centred card, a focus trap — and it would be the wrong one twice over: what is edited
+ * here is edited WHILE the conversation is read, and the whole point of the notes is that they are
+ * dragged OUT of this drawer onto the slots below, which nothing modal can allow.
+ *
+ * THERE IS NO RECTANGLE AT ALL, which is what changed when the conversation became a full-height
+ * panel. This used to be `position: fixed` with all four numbers written inline against the dock's
+ * own rectangle, because a panel drawn above the composer from inside a bottom-edge dock would have
+ * been cut off by `.panel`'s clip. In the flow it is simply a row of `.chat__body`'s grid, sized by
+ * what is on it — no inline style, no second copy of the dock's arithmetic, and nothing that can
+ * drift.
+ *
+ * NO SHADOW, because chalk has no thickness and only paper throws one here — which the notes inside
+ * duly do, through the material sheet's own filter chain. Nothing in this window is transparent, and
+ * the one exception is argued where it is made: see the ghost at the foot of this sheet.
+ */
+
+.pool {
+  /*
+   * POSITIONED THOUGH IT IS PLACED BY THE GRID, and the two are different jobs. Nothing here moves
+   * the drawer — the row it sits in does that — but the chalk frame below is `position: absolute`
+   * (see `chalk.css`), so this box has to be the containing block it resolves against. Static, the
+   * frame escapes to the nearest positioned ancestor, which is `.panel.chatdock > .chat__body`:
+   * the drawer is drawn with no border at all and a bright hollow rectangle appears around the
+   * whole conversation instead. This was the cost of dropping `position: fixed`, and it is the one
+   * part of that declaration that was doing a second job.
+   */
+  position: relative;
+  display: grid;
+  /* Head, instructions, refusal, surface: the first three are content-sized and the surface takes
+     what is left. The drawer is bounded by the shelf below being ONE non-wrapping row, so there is
+     no growth for a cap to stop; what the row does when there is too much for it is scroll
+     sideways. */
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  margin: 0 var(--space-2) var(--space-2);
+  padding: var(--space-2);
+  border-radius: 12px;
+  background: var(--board-well);
+}
+
+/* Inset by the displacement's reach, exactly as the dock insets its own: the panel clips nothing,
+   but a frame drawn at the very edge has its wobble sliced flat against the rounded corner. */
+.pool > .chalk-frame {
+  inset: 3px;
+  border-radius: 12px;
+}
+
+/* The content children paint above the frame, which is positioned and would otherwise cover them.
+   NAMED rather than `:not(.chalk-frame)`, for the reason `ChatDock.css` gives: a bare `:not` list
+   lands (0,3,0) on every child and quietly out-ranks anything inside that needs a position of its
+   own. */
+.pool > .pool__head,
+.pool > .pool__howto,
+.pool > .pool__refusal,
+.pool > .pool__surface {
+  position: relative;
+}
+
+.pool__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+/* The panel's own word. A title this window chose, so the sans — the same rule `.panel__title`
+   states for the conversation's heading, restated because this panel is not a `.panel`. */
+.pool__title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.pool__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * The three gestures, written on the slate.
+ *
+ * `GraphPanel`'s `board__howto` said the same kind of thing about the board and this says it about
+ * this corner of it — the same face, the same muted chalk, the same alternating tilt so three lines
+ * do not stack into a wedge. NO CHALK FILTER ANYWHERE NEAR THE GLYPHS: a displacement filter smears
+ * words, which is the law the whole `.chalk-frame` construction exists to obey. The tilt is what
+ * makes these read as written on the board rather than printed on it.
+ *
+ * Inert to the pointer, so a double click meant for the slate lands on the slate even where the
+ * writing is.
+ */
+.pool__howto {
+  display: grid;
+  gap: 1px;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  pointer-events: none;
+}
+
+.pool__howto-line {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  rotate: -0.6deg;
+}
+
+.pool__howto-line:nth-child(even) {
+  rotate: -0.2deg;
+}
+
+/* Why the pool is empty or stale, in the space it explains. Not a toast: a toast expires while the
+   panel it was about stays on screen. */
+.pool__refusal {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The shelf the notes are stuck to, and the double-click target.
+ *
+ * ONE ROW THAT SCROLLS SIDEWAYS rather than free positions or a wrapping grid. A model note is a
+ * small fixed thing with four boxes in it, not a record read whole, so there is nothing to gain from
+ * a place of its own on this slate. What the reader arranges here is the POOL — which models exist —
+ * and the arrangement that matters is the one below, on the slots.
+ *
+ * A SINGLE LINE because this is a drawer inside the conversation now, and every row it wraps to is a
+ * row of transcript it takes. It also keeps the notes as near as they can be to the slots they are
+ * dragged onto: a second row would put half of them further from the gesture's destination for no
+ * gain. Past the width of the panel the shelf scrolls, which a trackpad does laterally without a
+ * modifier and which the notes' own strips do not fight — the strip captures the pointer, and a
+ * scroll is not a pointer.
+ *
+ * BOTH AXES ARE `auto`, AND THE VERTICAL ONE IS NOT DECORATION. Sideways is the axis this shelf is
+ * for and the only one it uses at any ordinary size. But the drawer is a grid row with
+ * `min-height: 0` on it, so on a short window the row is COMPRESSED rather than allowed to
+ * overflow — and a shelf clipped at `overflow-y: hidden` would then cut the notes off with nothing
+ * that could scroll them back. `auto` costs nothing while the row has its full height and is the
+ * difference between a squeezed drawer and an unusable one.
+ */
+.pool__surface {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: 96px;
+  padding: var(--space-1);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* -- one model ------------------------------------------------------------------------------------ */
+
+/*
+ * A mini sticky note: a strip to hold it by, and four boxes.
+ *
+ * IT IS THE WINDOW'S ONE PAPER, like every other sheet — `styles/paper.css` owns the sage pad and
+ * there is nothing to choose. Only the torn edge is dealt from the entry's id, which is what keeps a
+ * column of these from repeating a single deckle down the panel.
+ *
+ * THE WIDTH IS THE DOCK'S SCALE TIMES THE NOTE'S OWN, AND IT IS STILL A RULE RATHER THAN A DRAG.
+ * What 208px buys is four short boxes and their labels, side by side along the shelf. The reader now
+ * moves the conversation's edge over a continuous range, so that figure is multiplied by
+ * `--dock-scale` — published on the dock by `ChatDock.tsx`, 1 at the midline and roughly [2/3, 4/3]
+ * across the range — and the notes narrow with the panel instead of running off the end of it.
+ *
+ * GEOMETRY SCALES AND INK DOES NOT. Every box in here stays at `--text-xs`, because a narrow dock is
+ * still read at arm's length, and the 150px floor is what that costs: four boxes at the window's
+ * smallest type need about that much before the caret in them stops being usable, so the last of the
+ * range is spent scrolling rather than shrinking.
+ *
+ * `flex: 0 0 auto` IS LOAD-BEARING and not tidiness. On a shelf that does not wrap, a flex item's
+ * default `flex-shrink: 1` lets the row solve its overflow by squeezing every note — two models in
+ * a narrow panel would each be drawn at some fraction of the width above, and that width would
+ * quietly stop being a rule. The shelf must scroll instead, and this is what makes it.
+ *
+ * THE GHOST IS NOT SIZED FROM HERE, and it could not be: it is portalled to the document body, where
+ * nothing inherits the dock's scale and the `var()` fallback would hand it the unscaled 208. What
+ * saves it is that `ModelPool.tsx` measures the live note at the press and writes that width inline,
+ * which outranks this rule — so the copy is the size of the thing it was lifted from whatever this
+ * has come out at.
+ */
+.pool__note {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  width: max(150px, calc(208px * var(--dock-scale, 1)));
+  padding: 0 var(--space-2) var(--space-2);
+  touch-action: none;
+}
+
+/*
+ * THE GHOST: the copy that follows the pointer while a note is being carried to a slot.
+ *
+ * The note itself never moves — the shelf would clip it at the first edge and its neighbours would
+ * reflow into the gap under the reader's hand — so what crosses the window is this, portalled to the
+ * document body by the component so no clip between here and the glass can reach it.
+ *
+ * IT IS THE ONE TRANSLUCENT THING IN THIS WINDOW, and the exception is the point rather than a
+ * lapse. The sheet's own rule is that nothing is see-through, because a thing you can see through is
+ * a thing that is not there; this IS a thing that is not there. What the reader has to see while
+ * they carry it is the slots UNDERNEATH — the row it is being aimed at — and the note it was copied
+ * from is still on the shelf at full strength, so nothing real is behind glass.
+ *
+ * Inert to the pointer, which stays captured by the strip that started the gesture; above the notes
+ * and the dock at `--z-pool`, whose argument now lives here.
+ *
+ * TWO CLASSES, and they are load-bearing rather than tidy — the same fight `.pool__remove` picks
+ * below and `.panel.chatdock` picks in `ChatDock.css`. The ghost carries `paper`, and `paper.css`
+ * declares `position: relative` on it at the same (0,1,0) this rule would have alone; which of the
+ * two won would be decided by nothing but the order the bundler emitted the sheets in. Losing it
+ * would not degrade the ghost, it would strand it: `left`/`top` would be read as an offset from a
+ * static position at the end of the document instead of as viewport coordinates.
+ */
+.pool__note--ghost.paper {
+  position: fixed;
+  z-index: var(--z-pool);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* The strip, quoted rather than shared: the live one carries the drag handlers and their cursors,
+   and none of that means anything on a picture. What is left is the mark that says it is a note. */
+.pool__ghost-head {
+  position: relative;
+  height: 18px;
+  margin-right: 26px;
+  border-bottom: 1px solid var(--paper-line);
+  border-radius: 2px 2px 0 0;
+}
+
+/* A value as a span rather than in its box: the same face and the same rule under it as
+   `.pool__input`, with nothing that could take a caret. A long url is cut off rather than wrapped,
+   because a ghost that is taller than the note it copies is not a copy. */
+.pool__ghost-value {
+  min-height: 1.4em;
+  padding: 1px 2px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The sheet is an inert layer under the words — the material sheet does the rest. Content siblings
+   above it carry `position: relative` (see `.pool__note-head` and `.pool__fields`), because a
+   positioned sheet would otherwise paint over the normal-flow boxes beside it. */
+.pool__sheet {
+  z-index: 0;
+}
+
+/*
+ * The magnet, which here is the delete.
+ *
+ * TWO CLASSES, and they are load-bearing rather than tidy: `paper.css` makes a magnet
+ * `pointer-events: none` by default — most of them are trim over a head that owns its presses — and
+ * a single-class rule here would lose to it at equal specificity on whatever order the bundler
+ * emits. The same fight `.note__close.paper__magnet` picks, for the same reason. The UA's own
+ * button chrome comes off with it: a border or a background would show as a square behind an 18px
+ * circle.
+ */
+.pool__remove.paper__magnet {
+  padding: 0;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/*
+ * The handle. It is the top of the sheet and it is deliberately blank: everything else on this note
+ * is a box that needs the caret, and a captured pointer takes text selection away from whatever it
+ * is started on.
+ *
+ * `touch-action: none` is not decoration — without it a touch drag is claimed by the browser's own
+ * panning before a single `pointermove` reaches the capture, and the note simply does not move on a
+ * touchscreen. `user-select: none` because a drag across a strip beside text selects it anyway.
+ * The right inset leaves the magnet its own corner, so the two controls never fight for a press.
+ */
+.pool__note-head {
+  position: relative;
+  height: 18px;
+  /* The one mark that says the strip is a strip. A blank 18px of paper with a `grab` cursor on it is
+     an affordance only a pointer already resting on it can find, and the gesture this note exists
+     for starts here — so the head is ruled off the boxes below in the paper's own line, which is the
+     same hairline every field in the note is underlined with. */
+  border-bottom: 1px solid var(--paper-line);
+  /* The stone's own corner, left clear so the two controls never fight for a press: the material
+     puts it 6px in at 18px across, and this is that plus a hair. */
+  margin-right: 26px;
+  border-radius: 2px 2px 0 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.pool__note-head:active {
+  cursor: grabbing;
+}
+
+.pool__fields {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Label over box. A two-column grid would put four short labels in a column of dead space; stacked,
+   each pair reads as one thing and the boxes are as wide as the note. */
+.pool__field {
+  display: grid;
+  gap: 1px;
+}
+
+/* The column's own word, in the note's muted ink. The mono because it is the name of a field in a
+   document written for another program — `url`, `api` — rather than a word this window chose. */
+.pool__label {
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  /* The hint is on the `title`, so the word itself says there is something to read. */
+  cursor: help;
+}
+
+/*
+ * The box. Ink on paper, ruled underneath rather than boxed in: four bordered inputs in a note this
+ * narrow would be four cards inside a card, and what a reader needs to see is where each value ends.
+ *
+ * THE MONO, at the smallest size in the window, because every one of these is a value off the wire —
+ * a url, a credential, a provider's id for a model — where a character being the character it is
+ * settles whether the thing works at all.
+ */
+.pool__input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.pool__input:focus-visible {
+  /* The ring the whole window draws would be an outline around a 2px-tall box's own outline; here
+     the rule under the value thickens into the accent instead, which is the same statement made in
+     the material this note is written in. `outline: none` is safe only because something else says
+     where the caret is — see the border. */
+  outline: none;
+  border-bottom-color: var(--focus);
+}
+
+.pool__input::placeholder {
+  color: var(--text-muted);
+}
